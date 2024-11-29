@@ -1,0 +1,26 @@
+{
+  "name": "vasta",
+  "version": "0.0.0",
+  "description": "",
+  "main": "dist/esm/index.js",
+  "scripts": {
+    "dev": "tsc --watch",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc --build",
+    "clean": "rm -rf dist/*"
+  },
+  "keywords": [],
+  "author": "David Nahodyl <david.nahodyl@gmail.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "@eslint/js": "^9.15.0",
+    "eslint": "^9.15.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.4.1",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.16.0"
+  },
+  "peerDependencies": {
+    "kysely": "^0.27.4"
+  }
+}

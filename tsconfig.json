@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "moduleResolution": "Node",
+    "target": "ESNext",
+    "declaration": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "module": "ESNext",
+    "outDir": "dist/esm"
+  },
+  "include": ["src/**/*"],
+  "forceConsistentCasingInFileNames": true
+}
