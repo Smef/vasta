@@ -1,0 +1,15 @@
+{
+  "include": ["./**/*", "../src/**/*"],
+  "exclude": [],
+  "compilerOptions": {
+    "strict": true,
+    "target": "esnext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "composite": true,
+    "paths": {
+      "@/*": ["./*"],
+      "@src/*": ["../src/*"]
+    }
+  }
+}

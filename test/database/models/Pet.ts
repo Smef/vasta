@@ -1,14 +1,16 @@
-import Model from "./Model";
-import { Database } from "../../types/database";
+import { Model } from "@src/Eloquent/Model";
+import { Database } from "@/types/database";
 import db from "../db";
-import { Insertable } from "kysely";
+import Person from "@/database/models/Person";
 
 export default class Pet extends Model<Database, "pets"> {
-  static db = db;
-  static tableName = "pets" as const;
-  // static primaryKeyColumn = "id" as const;
+  db = db;
+  primaryKey = "id" as const;
+  table = "pets" as const;
 
-  constructor(attributes: Insertable<Database["pets"]>) {
-    super();
+  // A Pet belongs to a Person
+  get owner() {
+    // return this.belongsTo(Person, "person_id", "id", "owner");
+    return this.belongsTo(Person, "person_id", "id", "owner");
   }
 }

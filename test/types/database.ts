@@ -1,9 +1,9 @@
 import { ColumnType, Generated, Insertable, JSONColumnType, Selectable, Updateable } from "kysely";
 
-export interface Database {
+export type Database = {
   people: PeopleTable;
   pets: PetsTable;
-}
+};
 
 // This interface describes the `person` table to Kysely. Table
 // interfaces should only be used in the `Database` type above

@@ -2,25 +2,47 @@
   "name": "vasta",
   "version": "0.0.0",
   "description": "",
-  "main": "dist/esm/index.js",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "default": "./dist/cjs/index.js"
+    }
+  },
   "scripts": {
     "dev": "tsc --watch",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc --build",
-    "clean": "rm -rf dist/*"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist/*",
+    "build": "pnpm run clean && (npm run build:esm & npm run build:cjs)",
+    "build:esm": "tsc -p tsconfig.json",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "db:reset": "kysely migrate:rollback --all && kysely migrate:latest && kysely seed:run",
+    "db:migrate": "kysely migrate:latest",
+    "db:seed": "kysely seed:run"
   },
+  "type": "module",
   "keywords": [],
   "author": "David Nahodyl <david.nahodyl@gmail.com>",
   "license": "MIT",
   "devDependencies": {
-    "@eslint/js": "^9.15.0",
-    "eslint": "^9.15.0",
-    "eslint-config-prettier": "^9.1.0",
-    "prettier": "^3.4.1",
-    "typescript": "^5.7.2",
-    "typescript-eslint": "^8.16.0"
+    "@eslint/js": "^9.39.3",
+    "@types/node": "^25.3.0",
+    "@types/pg": "^8.16.0",
+    "eslint": "^9.39.3",
+    "eslint-config-prettier": "^9.1.2",
+    "kysely": "^0.28.11",
+    "kysely-ctl": "^0.20.0",
+    "pg": "^8.18.0",
+    "prettier": "^3.8.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.56.0",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^1.6.1"
   },
   "peerDependencies": {
-    "kysely": "^0.27.4"
+    "kysely": "^0.28.11"
   }
 }

@@ -6,7 +6,12 @@
     "strict": true,
     "noImplicitAny": true,
     "module": "ESNext",
-    "outDir": "dist/esm"
+    "outDir": "dist/esm",
+    "baseUrl": ".",
+    "paths": {
+      "@src/*": ["./src/*"],
+      "@test/*": ["./test/*"]
+    }
   },
   "include": ["src/**/*"],
   "forceConsistentCasingInFileNames": true
