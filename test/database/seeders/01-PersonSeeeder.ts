@@ -5,7 +5,8 @@ import type { Kysely } from "kysely";
 export async function seed(db: Kysely<Database>): Promise<void> {
   // seed code goes here...
   // note: this function is mandatory. you must implement this function.
-  db.insertInto("people")
+  await db
+    .insertInto("people")
     .values([
       {
         name: "David",

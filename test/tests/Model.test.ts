@@ -22,12 +22,12 @@ describe("Model", () => {
     });
 
     it("should find multiple records by id", async () => {
-      const pets = await Pet.find([21, 29]);
+      const pets = await Pet.find([2, 4]);
       expect(pets).toHaveLength(2);
       expect(pets).not.toBeUndefined();
       if (!pets) return;
-      expect(pets[0].attributes.id).toBe(21);
-      expect(pets[1].attributes.id).toBe(29);
+      expect(pets[0].attributes.id).toBe(2);
+      expect(pets[1].attributes.id).toBe(4);
     });
   });
 
@@ -45,7 +45,7 @@ describe("Model", () => {
 
   describe("hydration", () => {
     it("should hydrate a model from database results", async () => {
-      const result = await Pet.where("id", "=", 21).executeTakeFirst();
+      const result = await Pet.where("id", "=", 3).first();
 
       expectToBeDefined(result);
 
@@ -162,22 +162,22 @@ describe("Model", () => {
     it("should return the first result", async () => {
       const pet = await Pet.orderBy("id", "asc").first();
       expect(pet).toBeDefined();
-      expect(pet?.attributes.id).toBe(21);
+      expect(pet?.attributes.id).toBe(1);
     });
 
     it("should return undefined if no result", async () => {
-      const pet = await Pet.where("id", "=", 999).first();
+      const pet = await Pet.where("id", "=", -999).first();
       expect(pet).toBeUndefined();
     });
 
     it("should return the first result or fail", async () => {
       const pet = await Pet.orderBy("id", "asc").firstOrFail();
       expect(pet).toBeDefined();
-      expect(pet.attributes.id).toBe(21);
+      expect(pet.attributes.id).toBe(1);
     });
 
     it("should throw an error if no result", async () => {
-      await expect(Pet.where("id", "=", 999).firstOrFail()).rejects.toThrow("Record not found.");
+      await expect(Pet.where("id", "=", -999).firstOrFail()).rejects.toThrow("Record not found.");
     });
   });
 
@@ -237,7 +237,7 @@ describe("Model", () => {
     });
 
     it("should find models using a many-to-one relationship", async () => {
-      const pet = await Pet.findOrFail(21);
+      const pet = await Pet.findOrFail(1);
       expect(pet).not.toBeNull();
 
       const owner = await pet.owner;
