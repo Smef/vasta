@@ -25,10 +25,7 @@ type Constraint =
   | { type: "whereNull"; column: string }
   | { type: "whereNotNull"; column: string };
 
-export class Builder<
-  M extends Model<any, any>,
-  S extends keyof M["attributes"] = never,
-> {
+export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] = never> {
   protected constraints: Constraint[] = [];
   protected selectedColumns: string[] = []; // Track our columns
   protected eagerLoads: string[] = [];
