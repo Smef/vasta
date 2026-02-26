@@ -247,6 +247,13 @@ describe("Model", () => {
       expect(owner).toBeInstanceOf(Person);
     });
 
+    it("should return return an empty array for a one-to-many relationship with no related records", async () => {
+      const person = await Person.where("name", "=", "Morgan").firstOrFail();
+
+      const pets = await person.pets;
+      expect(pets).toHaveLength(0);
+    });
+
     it("should return undefined owner for a pet without a person_id", async () => {
       const pet = await Pet.where("name", "=", "Stray").firstOrFail();
 
