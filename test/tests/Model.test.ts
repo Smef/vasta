@@ -71,6 +71,20 @@ describe("Model", () => {
       expect(result[0].attributes.name).toBe("Zuko");
     });
 
+    it("should default to equals when where is called with field and value", async () => {
+      const result = await Person.where("name", "David").first();
+
+      expect(result).toBeDefined();
+      expect(result?.attributes.name).toBe("David");
+    });
+
+    it("should use IN when where is called with field and array", async () => {
+      const result = await Person.where("favorite_color", ["blue", "green"]).orderBy("id", "asc").get();
+
+      expect(result).toHaveLength(2);
+      expect(result.map((person) => person.attributes.name)).toEqual(["David", "Kate"]);
+    });
+
     it("should find a model using a select clause", async () => {
       const result = await Pet.select("name").where("name", "=", "Zuko").executeTakeFirst();
       expect(result).toBeDefined();

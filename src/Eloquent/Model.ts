@@ -80,6 +80,12 @@ export abstract class Model<DB, TB extends keyof DB & string> {
   static where<T extends AnyModelConstructor>(
     this: T,
     column: keyof InstanceType<T>["attributes"] & string,
+    value: any[],
+  ): Builder<InstanceType<T>>;
+
+  static where<T extends AnyModelConstructor>(
+    this: T,
+    column: keyof InstanceType<T>["attributes"] & string,
     value: any,
   ): Builder<InstanceType<T>>;
 

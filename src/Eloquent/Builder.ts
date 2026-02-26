@@ -38,10 +38,13 @@ export class Builder<
 
   constructor(protected modelConstructor: AnyModelConstructor) {}
   where(column: keyof M["attributes"] & string, operator: string, value: any): this;
+  where(column: keyof M["attributes"] & string, value: any[]): this;
   where(column: keyof M["attributes"] & string, value: any): this;
   where(column: string, opOrVal: any, value?: any): this {
     if (value !== undefined) {
       this.constraints.push({ type: "where", column, operator: opOrVal, value });
+    } else if (Array.isArray(opOrVal)) {
+      this.constraints.push({ type: "whereIn", column, values: opOrVal });
     } else {
       this.constraints.push({ type: "where", column, operator: "=", value: opOrVal });
     }
