@@ -104,6 +104,41 @@ export async function seed(db: Kysely<Database>): Promise<void> {
         counter: 1,
         person_id: 3,
       },
+      {
+        name: "Nova",
+        type: "cat",
+        counter: 2,
+        person_id: 1,
+      },
+      {
+        name: "Bandit",
+        type: "dog",
+        counter: 1,
+        person_id: 2,
+      },
+      {
+        name: "Pebble",
+        type: "turtle",
+        counter: 0,
+        person_id: 3,
+      },
+      {
+        name: "Sunny",
+        type: "bird",
+        counter: 3,
+        person_id: 4,
+      },
+      {
+        name: "Koda",
+        type: "dog",
+        counter: 2,
+        person_id: 5,
+      },
+      {
+        name: "Stray",
+        type: "cat",
+        counter: 0,
+      },
     ])
     .execute();
 }

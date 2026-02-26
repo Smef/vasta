@@ -232,8 +232,9 @@ describe("Model", () => {
     it("should find models using a one-to-many relationship", async () => {
       const person = await Person.findOrFail(1);
       const pets = await person.pets;
-      expect(pets).toHaveLength(2);
+      expect(pets.length).toBe(4);
       expect(pets[0]).toBeInstanceOf(Pet);
+      expect(pets.every((pet) => pet.attributes.person_id === 1)).toBe(true);
     });
 
     it("should find models using a many-to-one relationship", async () => {
@@ -245,6 +246,16 @@ describe("Model", () => {
       expect(owner?.attributes.id).toBe(1);
       expect(owner).toBeInstanceOf(Person);
     });
+
+    it("should return undefined owner for a pet without a person_id", async () => {
+      const pet = await Pet.where("name", "=", "Stray").firstOrFail();
+
+      const owner = await pet.owner;
+      expect(owner).toBeUndefined();
+
+      await pet.delete();
+    });
+
     it("should allow chaining limit and offset on relationships", async () => {
       const person = await Person.findOrFail(1);
       const allPets = await person.pets;

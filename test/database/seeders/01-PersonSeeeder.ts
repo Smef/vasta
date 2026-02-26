@@ -42,6 +42,13 @@ export async function seed(db: Kysely<Database>): Promise<void> {
         favorite_color: "teal",
         phone: "770-555-0177",
       },
+      {
+        name: "Morgan",
+        birthday: new Date("1994-06-18"),
+        email: "morgan.rivera@example.com",
+        favorite_color: "red",
+        phone: "678-555-0168",
+      },
     ])
     .execute();
 }
