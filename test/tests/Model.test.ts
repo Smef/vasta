@@ -3,6 +3,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import Pet from "@/database/models/Pet";
 import Person from "@/database/models/Person";
 import { getQueryCount, resetQueryCount } from "@/database/db";
+import db from "@/database/db";
 import { Builder } from "@src/Eloquent/Builder";
 
 describe("Model", () => {
@@ -101,6 +102,24 @@ describe("Model", () => {
         expect(error).toBeInstanceOf(Error);
         expect((error as Error).message).toBe("Expected to find 2 records, but only found 1.");
       }
+    });
+
+    it("should support scalar subqueries in where clauses", async () => {
+      const davidIdSubquery = db.selectFrom("people").select("id").where("name", "=", "David").limit(1);
+
+      const pets = await Pet.where("person_id", "=", davidIdSubquery).orderBy("id", "asc").get();
+
+      expect(pets).toHaveLength(4);
+      expect(pets.map((pet) => pet.attributes.name)).toEqual(["Zuko", "Yoshi", "Rex", "Nova"]);
+    });
+
+    it("should support IN subqueries in where clauses", async () => {
+      const ownersSubquery = db.selectFrom("people").select("id").where("favorite_color", "in", ["blue", "green"]);
+
+      const pets = await Pet.where("person_id", "in", ownersSubquery).get();
+
+      expect(pets).toHaveLength(8);
+      expect(pets.every((pet) => pet.attributes.person_id === 1 || pet.attributes.person_id === 2)).toBe(true);
     });
   });
 
@@ -259,8 +278,6 @@ describe("Model", () => {
 
       const owner = await pet.owner;
       expect(owner).toBeUndefined();
-
-      await pet.delete();
     });
 
     it("should allow chaining limit and offset on relationships", async () => {
