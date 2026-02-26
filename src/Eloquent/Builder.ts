@@ -27,7 +27,7 @@ type Constraint =
 
 export class Builder<
   M extends Model<any, any>,
-  S extends keyof M["attributes"] = never, // NEW: Tracks selected columns
+  S extends keyof M["attributes"] = never,
 > {
   protected constraints: Constraint[] = [];
   protected selectedColumns: string[] = []; // Track our columns

@@ -87,7 +87,6 @@ export abstract class Model<DB, TB extends keyof DB & string> {
     return (this as any).query().where(...args);
   }
 
-  // NEW: Add whereIn support directly on the Model class
   static whereIn<T extends AnyModelConstructor>(
     this: T,
     column: keyof InstanceType<T>["attributes"] & string,
