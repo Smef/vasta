@@ -294,9 +294,7 @@ export abstract class Model<DB, TB extends keyof DB & string> {
 
 export type Simplify<T> = { [K in keyof T]: T[K] } & {};
 
-export type ModelConstructorArgs<T, DA> = Simplify<
-  Omit<T, keyof DA> & Partial<Pick<T, keyof DA & keyof T>>
->;
+export type ModelConstructorArgs<T, DA> = Simplify<Omit<T, keyof DA> & Partial<Pick<T, keyof DA & keyof T>>>;
 
 export interface ModelConfig<DB, TB extends keyof DB & string> {
   db: Kysely<DB>;
@@ -307,11 +305,9 @@ export interface ModelConfig<DB, TB extends keyof DB & string> {
   attributes?: Partial<Insertable<DB[TB]>>;
 }
 
-export function defineModel<
-  DB,
-  TB extends keyof DB & string,
-  DA extends Partial<Insertable<DB[TB]>> = {}
->(config: ModelConfig<DB, TB> & { attributes?: DA }) {
+export function defineModel<DB, TB extends keyof DB & string, DA extends Partial<Insertable<DB[TB]>> = {}>(
+  config: ModelConfig<DB, TB> & { attributes?: DA },
+) {
   abstract class BaseModel extends Model<DB, TB> {
     db = config.db;
     table = config.table;
@@ -323,9 +319,7 @@ export function defineModel<
       return (config.attributes ?? {}) as Partial<Insertable<DB[TB]>>;
     }
 
-    constructor(
-      attributes: ModelConstructorArgs<Insertable<DB[TB]>, Exclude<DA, undefined>>
-    ) {
+    constructor(attributes: ModelConstructorArgs<Insertable<DB[TB]>, Exclude<DA, undefined>>) {
       super(attributes as any);
     }
   }
