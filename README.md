@@ -121,6 +121,19 @@ const pet = await Pet.findOrFail(1);
 await pet.incrementCounter();
 ```
 
+### Default Attributes
+
+You can also specify default attributes for your models. These attributes will be applied to the model instance if they are not provided when creating a new instance. Creating a new instance with missing attributes that have defaults will not throw a type error, and the defaults will be applied instead.
+
+```ts
+export default class Pet extends defineModel({
+  // ...other config
+  attributes: {
+    counter: 0,
+  },
+}) {
+```
+
 ## Local Development
 
 ### Set up your database
@@ -133,7 +146,7 @@ Copy the `.env.example` file to `.env` and fill in your database connection deta
 
 ```sh
 pnpm install
-```
+````
 
 ### Run database migrations and seeds
 

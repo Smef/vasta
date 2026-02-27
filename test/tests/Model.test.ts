@@ -68,6 +68,17 @@ describe("constructor", () => {
     );
   });
 
+  it("should overwrite default attributes with provided values", () => {
+    const pet = new Pet({
+      name: "Fluffy",
+      counter: 1,
+      type: "cat",
+    });
+
+    expect(pet.attributes.name).toBe("Fluffy");
+    expect(pet.attributes.counter).toBe(1);
+  });
+
   it("should have a type error when creating an instance with invalid attributes", () => {
     const pet = new Pet({
       name: "Fluffy",
