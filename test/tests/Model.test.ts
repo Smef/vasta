@@ -245,6 +245,16 @@ describe("Model", () => {
       // Clean up
       await pet.delete();
     });
+
+    it("should increment a pet counter", async () => {
+      const pet = await Pet.findOrFail(1);
+      const initialCounter = pet.attributes.counter;
+
+      await pet.incrementCounter();
+
+      const updatedPet = await Pet.findOrFail(1);
+      expect(updatedPet.attributes.counter).toBe(initialCounter + 1);
+    });
   });
 
   describe("delete", () => {
@@ -316,6 +326,12 @@ describe("Model", () => {
       expect(firstPersonPets).toBe(people[0].loadedRelations.pets);
       expect(firstPersonPets.every((pet) => pet.attributes.person_id === people[0].attributes.id)).toBe(true);
       expect(getQueryCount()).toBe(2);
+    });
+
+    it("should lazy load hasMany relations with additional constraints", async () => {
+      const person = await Person.findOrFail(3);
+      const bird = await person.pets.where("type", "bird").first();
+      expect(bird).toBeInstanceOf(Pet);
     });
 
     it("should eager load belongsTo relations with with()", async () => {
