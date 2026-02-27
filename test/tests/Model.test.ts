@@ -40,6 +40,32 @@ describe("constructor", () => {
     });
 
     expect(pet.attributes.name).toBe("Fluffy");
+    expect(pet.attributes.counter).toBe(1);
+  });
+
+  it("should apply default attributes if not provided", () => {
+    const pet = new Pet({
+      name: "Defaulted",
+      type: "cat",
+    });
+
+    expect(pet.attributes.name).toBe("Defaulted");
+    expect(pet.attributes.counter).toBe(0); // Default from config
+
+    // saving should work without providing counter
+    expect(pet.save()).resolves.not.toThrow();
+  });
+
+  it("should have a type error if a required attribute is not provided even after applying defaults", async () => {
+    // @ts-expect-error
+    const pet = new Pet({
+      name: "Defaulted",
+    });
+
+    // saving should have an error
+    await expect(pet.save()).rejects.toThrowError(
+      'null value in column "type" of relation "pets" violates not-null constraint',
+    );
   });
 
   it("should have a type error when creating an instance with invalid attributes", () => {

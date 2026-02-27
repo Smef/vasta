@@ -11,6 +11,9 @@ node_modules
 .idea
 .vscode
 
+# Cache files
+*.tsbuildinfo
+
 # Local env files
 .env
 .env.*

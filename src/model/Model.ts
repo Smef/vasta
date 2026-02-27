@@ -11,12 +11,16 @@ export abstract class Model<DB, TB extends keyof DB & string> {
   abstract primaryKey: keyof DB[TB] & string;
   hidden: (keyof DB[TB] & string)[] = [];
 
+  get defaultAttributes(): Partial<Insertable<DB[TB]>> {
+    return {};
+  }
+
   attributes: Selectable<DB[TB]>;
   exists = false;
   loadedRelations: Record<string, any> = {};
 
-  constructor(attributes: Insertable<DB[TB]>) {
-    this.attributes = attributes as unknown as Selectable<DB[TB]>;
+  constructor(attributes: Partial<Insertable<DB[TB]>> = {}) {
+    this.attributes = { ...this.defaultAttributes, ...attributes } as unknown as Selectable<DB[TB]>;
   }
 
   toJSON(): Record<string, any> {
@@ -288,21 +292,42 @@ export abstract class Model<DB, TB extends keyof DB & string> {
 
 // Model config and function to set up the models and help type inference and intellisense
 
+export type Simplify<T> = { [K in keyof T]: T[K] } & {};
+
+export type ModelConstructorArgs<T, DA> = Simplify<
+  Omit<T, keyof DA> & Partial<Pick<T, keyof DA & keyof T>>
+>;
+
 export interface ModelConfig<DB, TB extends keyof DB & string> {
   db: Kysely<DB>;
   table: TB;
   // Make primaryKey optional, it will default to "id" under the hood
   primaryKey?: keyof DB[TB] & string;
   hidden?: (keyof DB[TB] & string)[];
+  attributes?: Partial<Insertable<DB[TB]>>;
 }
 
-export function defineModel<DB, TB extends keyof DB & string>(config: ModelConfig<DB, TB>) {
+export function defineModel<
+  DB,
+  TB extends keyof DB & string,
+  DA extends Partial<Insertable<DB[TB]>> = {}
+>(config: ModelConfig<DB, TB> & { attributes?: DA }) {
   abstract class BaseModel extends Model<DB, TB> {
     db = config.db;
     table = config.table;
     // Fallback to "id" if not provided, explicitly cast to keep TypeScript happy
     primaryKey = (config.primaryKey ?? "id") as keyof DB[TB] & string;
     hidden = config.hidden ?? [];
+
+    get defaultAttributes(): Partial<Insertable<DB[TB]>> {
+      return (config.attributes ?? {}) as Partial<Insertable<DB[TB]>>;
+    }
+
+    constructor(
+      attributes: ModelConstructorArgs<Insertable<DB[TB]>, Exclude<DA, undefined>>
+    ) {
+      super(attributes as any);
+    }
   }
 
   return BaseModel;

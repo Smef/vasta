@@ -5,6 +5,9 @@ import db from "@/database/db";
 export default class Pet extends defineModel({
   db,
   table: "pets",
+  attributes: {
+    counter: 0,
+  },
 }) {
   // A Pet belongs to a Person
   get owner() {
