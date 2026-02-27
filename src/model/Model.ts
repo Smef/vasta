@@ -9,6 +9,7 @@ export abstract class Model<DB, TB extends keyof DB & string> {
   abstract db: Kysely<DB>;
   abstract table: TB;
   abstract primaryKey: keyof DB[TB] & string;
+  hidden: (keyof DB[TB] & string)[] = [];
 
   attributes: Selectable<DB[TB]>;
   exists = false;
@@ -16,6 +17,23 @@ export abstract class Model<DB, TB extends keyof DB & string> {
 
   constructor(attributes: Insertable<DB[TB]>) {
     this.attributes = attributes as unknown as Selectable<DB[TB]>;
+  }
+
+  toJSON(): Record<string, any> {
+    const serialized: Record<string, any> = { ...this.attributes };
+    for (const key of this.hidden) {
+      delete serialized[key];
+    }
+    for (const [key, relation] of Object.entries(this.loadedRelations)) {
+      if (Array.isArray(relation)) {
+        serialized[key] = relation.map((r) => (typeof r?.toJSON === "function" ? r.toJSON() : r));
+      } else if (relation && typeof relation.toJSON === "function") {
+        serialized[key] = relation.toJSON();
+      } else {
+        serialized[key] = relation;
+      }
+    }
+    return serialized;
   }
 
   // --- Active Record Methods ---
@@ -275,6 +293,7 @@ export interface ModelConfig<DB, TB extends keyof DB & string> {
   table: TB;
   // Make primaryKey optional, it will default to "id" under the hood
   primaryKey?: keyof DB[TB] & string;
+  hidden?: (keyof DB[TB] & string)[];
 }
 
 export function defineModel<DB, TB extends keyof DB & string>(config: ModelConfig<DB, TB>) {
@@ -283,6 +302,7 @@ export function defineModel<DB, TB extends keyof DB & string>(config: ModelConfi
     table = config.table;
     // Fallback to "id" if not provided, explicitly cast to keep TypeScript happy
     primaryKey = (config.primaryKey ?? "id") as keyof DB[TB] & string;
+    hidden = config.hidden ?? [];
   }
 
   return BaseModel;

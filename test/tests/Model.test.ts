@@ -364,6 +364,47 @@ describe("relationships", () => {
   });
 });
 
+describe("serialization", () => {
+  it("should serialize a model to JSON", async () => {
+    const pet = await Pet.findOrFail(1);
+    const json = pet.toJSON();
+
+    expect(json).toBeDefined();
+    expect(json.id).toBe(1);
+    expect(json.name).toBe("Zuko");
+  });
+
+  it("should hide columns specified in the hidden array", async () => {
+    const person = await Person.findOrFail(1);
+    const json = person.toJSON();
+
+    expect(json).toBeDefined();
+    expect(json.id).toBe(1);
+    expect(json.name).toBe("David");
+    expect(json.secret).toBeUndefined();
+    expect(person.attributes.secret).toBeDefined();
+  });
+
+  it("should serialize loaded relations", async () => {
+    const person = await Person.with("pets").findOrFail(1);
+    const json = person.toJSON();
+
+    expect(json.pets).toBeDefined();
+    expect(json.pets).toHaveLength(4);
+    expect(json.pets[0].name).toBeDefined();
+  });
+
+  it("should be used by JSON.stringify", async () => {
+    const person = await Person.findOrFail(1);
+    const jsonString = JSON.stringify(person);
+    const parsed = JSON.parse(jsonString);
+
+    expect(parsed.id).toBe(1);
+    expect(parsed.name).toBe("David");
+    expect(parsed.secret).toBeUndefined();
+  });
+});
+
 // custom assertion to make sure the value is defined and help with type narrowing
 function expectToBeDefined<T>(value: T | undefined): asserts value is T {
   expect(value).toBeDefined();
