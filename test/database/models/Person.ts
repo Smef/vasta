@@ -1,12 +1,12 @@
 import { Model } from "@src/Eloquent/Model";
 import { Database } from "@/types/database";
-import db from "../db";
-import Pet from "./Pet";
+import db from "@/database/db";
+import Pet from "@/database/models/Pet";
 
 export default class Person extends Model<Database, "people"> {
   db = db;
-  primaryKey = "id" as const;
   table = "people" as const;
+  primaryKey = "id" as const;
 
   // A Person has many Pets
   get pets() {

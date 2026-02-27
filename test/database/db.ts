@@ -23,7 +23,7 @@ export const dialect = new PostgresDialect({
   }),
 });
 
-export const kysely = new Kysely<Database>({
+export const db = new Kysely<Database>({
   dialect,
   log(event) {
     if (event.level === "query") {
@@ -32,4 +32,4 @@ export const kysely = new Kysely<Database>({
   },
 });
 
-export default kysely;
+export default db;

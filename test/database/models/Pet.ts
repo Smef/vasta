@@ -13,4 +13,9 @@ export default class Pet extends Model<Database, "pets"> {
     // return this.belongsTo(Person, "person_id", "id", "owner");
     return this.belongsTo(Person, "person_id", "id", "owner");
   }
+
+  incrementCounter() {
+    this.attributes.counter += 1;
+    return this.save();
+  }
 }
