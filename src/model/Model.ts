@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Insertable, Kysely, Selectable } from "kysely";
-import { Builder, RelationBuilder } from "@src/Eloquent/Builder";
+import { Builder, RelationBuilder } from "@src/model/Builder";
 
 export type AnyModelConstructor = abstract new (...args: any[]) => Model<any, any>;
 
-abstract class Model<DB, TB extends keyof DB & string> {
+export abstract class Model<DB, TB extends keyof DB & string> {
   abstract db: Kysely<DB>;
   abstract table: TB;
   abstract primaryKey: keyof DB[TB] & string;

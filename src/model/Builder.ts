@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Kysely } from "kysely";
-import { Model } from "@src/Eloquent/Model";
+import { Model } from "@src/model/Model";
 export type AnyModelConstructor = abstract new (...args: any[]) => Model<any, any>;
 
 export type RelationMetadata = {
@@ -363,6 +363,8 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
     }
   }
 }
+
+export default Builder;
 
 /**
  * A specialized Builder that acts as a Promise.

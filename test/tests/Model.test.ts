@@ -4,7 +4,7 @@ import Pet from "@/database/models/Pet";
 import Person from "@/database/models/Person";
 import { getQueryCount, resetQueryCount } from "@/database/db";
 import db from "@/database/db";
-import { Builder } from "@src/Eloquent/Builder";
+import Builder from "@src/model/Builder";
 
 describe("find", () => {
   it("should find a record by id", async () => {
