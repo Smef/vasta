@@ -1,1 +1,0 @@
-This project is to create a wrapper around Kysely that works like Laravel's Illumante ORM.

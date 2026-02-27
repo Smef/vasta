@@ -8,7 +8,6 @@ export default class Pet extends defineModel({
 }) {
   // A Pet belongs to a Person
   get owner() {
-    // return this.belongsTo(Person, "person_id", "id", "owner");
     return this.belongsTo(Person, "person_id", "id", "owner");
   }
   incrementCounter() {

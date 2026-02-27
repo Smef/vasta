@@ -32,20 +32,21 @@ This is all just standar Kysely setup up to this point, so follow thier instruct
 
 You'll need to create new classes for each of your models, extending the defineModel function provided by Vasta. Each model should specify the corresponding table name and define its attributes.
 
-There are some required values in your model:
+The defineModel function takes an object with the following properties:
 
 - `db`: This should be set to your Kysely database instance.
 - `table`: This should be set to the name of the table in your database that this model represents. This should be a string typed `as const`.
-- `primaryKey`: (optional)
+- `primaryKey`: (optional) the primary key column for the table, defaults to "id".
 
 ```ts
-import { defineModel } from "@src/Eloquent/Model";
+import { defineModel } from "vasta";
 import db from "@/database/db";
 import Pet from "@/database/models/Pet";
 
 export default class Person extends defineModel({
-  db,
-  table: "people",
+  db, // Your Kysely database instance
+  table: "people", // the name of the table in your Kysely database type that this model represents
+  id: "id", // optional, defaults to "id"
 }) {
   // A Person has many Pets
   get pets() {
@@ -57,7 +58,7 @@ export default class Person extends defineModel({
 
 #### Relationships
 
-Vasta supports defining relationships between your models. You can define relationships such as `hasMany`, `belongsTo`, `hasOne`, and `belongsToMany` to easily navigate between related models. Related models can be eager loaded or lazy loaded as needed.
+Vasta supports defining relationships between your models. You can define relationships such as `hasMany`, `belongsTo` to easily navigate between related models. Related models can be eager loaded or lazy loaded as needed.
 
 for example, if you have a `Person` model and a `Pet` model, you can define the relationships as follows:
 
@@ -103,10 +104,10 @@ You can define your own functions on your models to handle common operations.
 As an example, let's say we want to have a function to increment a counter on our model. We can define this function on our model like so:
 
 ```ts
-export default class Pet extends Model<Database, "pets"> {
-  // ...
-
+export default class Pet extends defineModel({...}) {
+  // increment a counter and save the model in a single call
   incrementCounter() {
+    console.log("Incrementing counter for pet:", this.attributes.name);
     this.attributes.counter += 1;
     return this.save();
   }
@@ -122,6 +123,33 @@ await pet.incrementCounter();
 
 ## Local Development
 
-```bash
-pnpm kysely migrate:latest
+### Set up your database
+
+The tests in this package are currently configured to work on a Postgres database. To run the tests, you'll need to have a Postgres database set up and running to connect to.
+
+Copy the `.env.example` file to `.env` and fill in your database connection details.
+
+### Install package dependencies with pnpm
+
+```sh
+pnpm install
+```
+
+### Run database migrations and seeds
+
+```sh
+pnpm db:migrate
+pnpm db:seed
+```
+
+### run tests with vitest
+
+```sh
+pnpm test
+```
+
+You can also reset the databse and re-run the tests with a single command:
+
+```sh
+pnpm test:reset
 ```

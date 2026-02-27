@@ -1,3 +1,3 @@
-import { defineModel } from "@src/Eloquent/Model";
+import { defineModel } from "@src/model/Model";
 
 export { defineModel };
