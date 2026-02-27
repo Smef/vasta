@@ -12,6 +12,7 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addColumn("email", "varchar")
     .addColumn("phone", "varchar")
     .addColumn("favorite_color", "varchar")
+    .addColumn("secret", "varchar")
     .execute();
 }
 

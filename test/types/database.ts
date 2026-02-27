@@ -24,6 +24,7 @@ export interface PeopleTable {
   favorite_color: string | null;
   email: string | null;
   phone: string | null;
+  secret: string | null;
 
   // You can specify a different type for each operation (select, insert and
   // update) using the `ColumnType<SelectType, InsertType, UpdateType>`

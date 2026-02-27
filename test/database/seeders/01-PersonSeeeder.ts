@@ -14,6 +14,7 @@ export async function seed(db: Kysely<Database>): Promise<void> {
         email: "david.nahodyl@gmail.com",
         favorite_color: "blue",
         phone: "404-123-1234",
+        secret: "password123",
       },
       {
         name: "Kate",
@@ -21,6 +22,7 @@ export async function seed(db: Kysely<Database>): Promise<void> {
         email: "kate.nahodyl@gmail.com",
         favorite_color: "green",
         phone: "404-555-0123",
+        secret: "kate_secret",
       },
       {
         name: "Alex",
@@ -28,12 +30,14 @@ export async function seed(db: Kysely<Database>): Promise<void> {
         email: "alex.morgan@example.com",
         favorite_color: "purple",
         phone: "770-555-0191",
+        secret: "alex_secret",
       },
       {
         name: "Jordan",
         birthday: new Date("1992-09-02"),
         email: "jordan.lee@example.com",
         favorite_color: "orange",
+        secret: "jordan_secret",
       },
       {
         name: "Priya",
@@ -41,6 +45,7 @@ export async function seed(db: Kysely<Database>): Promise<void> {
         email: "priya.shah@example.com",
         favorite_color: "teal",
         phone: "770-555-0177",
+        secret: "priya_secret",
       },
       {
         name: "Morgan",
@@ -48,6 +53,7 @@ export async function seed(db: Kysely<Database>): Promise<void> {
         email: "morgan.rivera@example.com",
         favorite_color: "red",
         phone: "678-555-0168",
+        secret: "morgan_secret",
       },
     ])
     .execute();
