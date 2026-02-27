@@ -13,8 +13,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@src": resolve(process.cwd(), "src"),
-      "@test": resolve(process.cwd(), "test"),
+      "@src": resolve(__dirname, "src"),
+      "@test": resolve(__dirname, "test"),
     },
   },
 });

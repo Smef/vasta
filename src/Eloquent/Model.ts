@@ -5,7 +5,7 @@ import { Builder, RelationBuilder } from "@src/Eloquent/Builder";
 
 export type AnyModelConstructor = abstract new (...args: any[]) => Model<any, any>;
 
-export abstract class Model<DB, TB extends keyof DB & string> {
+abstract class Model<DB, TB extends keyof DB & string> {
   abstract db: Kysely<DB>;
   abstract table: TB;
   abstract primaryKey: keyof DB[TB] & string;
@@ -268,4 +268,22 @@ export abstract class Model<DB, TB extends keyof DB & string> {
   }
 }
 
-// ... (Static methods go here)
+// Model config and function to set up the models and help type inference and intellisense
+
+export interface ModelConfig<DB, TB extends keyof DB & string> {
+  db: Kysely<DB>;
+  table: TB;
+  // Make primaryKey optional, it will default to "id" under the hood
+  primaryKey?: keyof DB[TB] & string;
+}
+
+export function defineModel<DB, TB extends keyof DB & string>(config: ModelConfig<DB, TB>) {
+  abstract class BaseModel extends Model<DB, TB> {
+    db = config.db;
+    table = config.table;
+    // Fallback to "id" if not provided, explicitly cast to keep TypeScript happy
+    primaryKey = (config.primaryKey ?? "id") as keyof DB[TB] & string;
+  }
+
+  return BaseModel;
+}

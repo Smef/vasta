@@ -30,23 +30,23 @@ This is all just standar Kysely setup up to this point, so follow thier instruct
 
 ### Define your Vasta Models
 
-You'll need to create new classes for each of your models, extending the `Model` class provided by Vasta. Each model should specify the corresponding table name and define its attributes.
+You'll need to create new classes for each of your models, extending the defineModel function provided by Vasta. Each model should specify the corresponding table name and define its attributes.
 
 There are some required values in your model:
 
 - `db`: This should be set to your Kysely database instance.
 - `table`: This should be set to the name of the table in your database that this model represents. This should be a string typed `as const`.
-- `primaryKey`: This should be set to the name of the primary key column. For type-safety, this should be a string typed `as const`.
+- `primaryKey`: (optional)
 
 ```ts
+import { defineModel } from "@src/Eloquent/Model";
 import db from "@/database/db";
 import Pet from "@/database/models/Pet";
 
-export default class Person extends Model<Database, "people"> {
-  db = db;
-  table = "people" as const;
-  primaryKey = "id" as const;
-
+export default class Person extends defineModel({
+  db,
+  table: "people",
+}) {
   // A Person has many Pets
   get pets() {
     // We pass the Pet class, and the foreign key column on the pets table

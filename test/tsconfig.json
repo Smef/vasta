@@ -9,7 +9,8 @@
     "composite": true,
     "paths": {
       "@/*": ["./*"],
-      "@src/*": ["../src/*"]
+      "@src/*": ["../src/*"],
+      "vasta": ["../src/index.ts"]
     }
   }
 }
