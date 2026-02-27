@@ -1,8 +1,8 @@
 import { defineConfig } from "kysely-ctl";
-import { kysely, dialect } from "../test/database";
+import { db, dialect } from "../test/database/db";
 
 export default defineConfig({
-  kysely, // pass your Kysely instance here
+  kysely: db, // pass your Kysely instance here
   dialect,
   // replace me with a real dialect instance OR a dialect name + `dialectConfig` prop.
   //   dialect: {
