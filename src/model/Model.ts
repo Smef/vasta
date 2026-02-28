@@ -21,6 +21,28 @@ export abstract class Model<DB, TB extends keyof DB & string> {
 
   constructor(attributes: Partial<Insertable<DB[TB]>> = {}) {
     this.attributes = { ...this.defaultAttributes, ...attributes } as unknown as Selectable<DB[TB]>;
+
+    return new Proxy(this, {
+      get(target, prop, receiver) {
+        if (prop in target) {
+          return Reflect.get(target, prop, receiver);
+        }
+        if (target.attributes && typeof prop === "string" && prop in target.attributes) {
+          return target.attributes[prop as keyof typeof target.attributes];
+        }
+        return undefined;
+      },
+      set(target, prop, value, receiver) {
+        if (prop in target) {
+          return Reflect.set(target, prop, value, receiver);
+        }
+        if (target.attributes && typeof prop === "string") {
+          target.attributes[prop as keyof typeof target.attributes] = value as any;
+          return true;
+        }
+        return Reflect.set(target, prop, value, receiver);
+      },
+    });
   }
 
   assign(attributes: Partial<Insertable<DB[TB]>>): this {
@@ -52,7 +74,7 @@ export abstract class Model<DB, TB extends keyof DB & string> {
 
     if (this.exists) {
       // UPDATE
-      await this.db
+      await (this.db as any)
         .updateTable(this.table)
         .set(this.attributes as any)
         .where(this.primaryKey as any, "=", pkValue)
@@ -79,7 +101,7 @@ export abstract class Model<DB, TB extends keyof DB & string> {
     }
 
     const pkValue = this.attributes[this.primaryKey as keyof typeof this.attributes];
-    const result = await this.db
+    const result = await (this.db as any)
       .deleteFrom(this.table)
       .where(this.primaryKey as any, "=", pkValue)
       .executeTakeFirst();
@@ -248,7 +270,7 @@ export abstract class Model<DB, TB extends keyof DB & string> {
 
     const builder = new RelationBuilder<InstanceType<R>, InstanceType<R> | undefined>(
       relatedClass,
-      (b) => b.first(), // Resolves to a single model
+      (b) => b.first() as any, // Resolves to a single model
       cacheKey,
       this,
       {
@@ -279,7 +301,7 @@ export abstract class Model<DB, TB extends keyof DB & string> {
 
     const builder = new RelationBuilder<InstanceType<R>, InstanceType<R>[]>(
       relatedClass,
-      (b) => b.get(), // Resolves to an array
+      (b) => b.get() as any, // Resolves to an array
       cacheKey,
       this,
       {
@@ -329,5 +351,9 @@ export function defineModel<DB, TB extends keyof DB & string, DA extends Partial
     }
   }
 
-  return BaseModel;
+  return BaseModel as unknown as (abstract new (
+    attributes: ModelConstructorArgs<Insertable<DB[TB]>, Exclude<DA, undefined>>,
+  ) => BaseModel & Selectable<DB[TB]>) & {
+    [K in keyof typeof BaseModel]: (typeof BaseModel)[K];
+  };
 }

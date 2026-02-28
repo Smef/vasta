@@ -321,10 +321,10 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
       if (idOrIds.length === 0) return []; // Optimization for empty arrays
 
       this.whereIn(pkColumn as any, idOrIds);
-      return this.get(); // Returns M[]
+      return this.get() as any; // Returns M[]
     } else {
       this.where(pkColumn as any, "=", idOrIds);
-      return this.executeTakeFirst(); // Returns M | undefined
+      return this.executeTakeFirst() as any; // Returns M | undefined
     }
   }
 

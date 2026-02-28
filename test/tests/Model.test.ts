@@ -113,6 +113,30 @@ describe("assign", () => {
   });
 });
 
+describe("dynamic property access (Proxy)", () => {
+  it("should allow getting and setting attributes directly on the instance", () => {
+    const pet = new Pet({
+      name: "Original",
+      counter: 1,
+      type: "dog",
+    });
+
+    // testing dynamic access
+    expect(pet.name).toBe("Original");
+    expect(pet.counter).toBe(1);
+    expect(pet.type).toBe("dog");
+
+    // testing dynamic set
+    pet.name = "Spot";
+    expect(pet.attributes.name).toBe("Spot");
+    expect(pet.name).toBe("Spot");
+
+    pet.counter = 42;
+    expect(pet.attributes.counter).toBe(42);
+    expect(pet.counter).toBe(42);
+  });
+});
+
 describe("hydration", () => {
   it("should hydrate a model from database results", async () => {
     const result = await Pet.where("id", "=", 3).first();
@@ -346,6 +370,8 @@ describe("relationships", () => {
     const pets = await person.pets;
     expect(pets.length).toBe(4);
     expect(pets[0]).toBeInstanceOf(Pet);
+    // check and make sure that dynamic also works on related models
+    expect(pets[0].name).toBe(pets[0].attributes.name);
     expect(pets.every((pet) => pet.attributes.person_id === 1)).toBe(true);
   });
 
@@ -354,8 +380,9 @@ describe("relationships", () => {
     expect(pet).not.toBeNull();
 
     const owner = await pet.owner;
-    expect(owner).not.toBeNull();
+    expectToBeDefined(owner);
     expect(owner?.attributes.id).toBe(1);
+    expect(owner?.name).toBe(owner?.attributes.name);
     expect(owner).toBeInstanceOf(Person);
   });
 
