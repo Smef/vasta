@@ -9,8 +9,7 @@ import Builder from "@src/model/Builder";
 describe("find", () => {
   it("should find a record by id", async () => {
     const pet = await Pet.find(1);
-    expect(pet).not.toBeNull();
-    if (!pet) return;
+    expectToBeDefined(pet);
 
     expect(pet.attributes.id).toBe(1);
     expect(pet.attributes.name).toBe("Zuko");
@@ -190,7 +189,7 @@ describe("query", () => {
 
   it("should find a model by id using find", async () => {
     const person = await Person.find(1);
-    expect(person).not.toBeNull();
+    expectToBeDefined(person);
   });
 
   it("should throw an error with findOrFail if record not found", async () => {
@@ -377,12 +376,12 @@ describe("relationships", () => {
 
   it("should find models using a many-to-one relationship", async () => {
     const pet = await Pet.findOrFail(1);
-    expect(pet).not.toBeNull();
+    expectToBeDefined(pet);
 
     const owner = await pet.owner;
     expectToBeDefined(owner);
-    expect(owner?.attributes.id).toBe(1);
-    expect(owner?.name).toBe(owner?.attributes.name);
+    expect(owner.attributes.id).toBe(1);
+    expect(owner.name).toBe(owner.attributes.name);
     expect(owner).toBeInstanceOf(Person);
   });
 
