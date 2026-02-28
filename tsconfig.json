@@ -13,6 +13,6 @@
       "@test/*": ["./test/*"]
     }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "docs/**/*"],
   "forceConsistentCasingInFileNames": true
 }

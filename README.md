@@ -178,3 +178,25 @@ You can also reset the databse and re-run the tests with a single command:
 ```sh
 pnpm test:reset
 ```
+
+## Development
+
+### Install dependencies
+
+```sh
+pnpm install
+```
+
+### Run tests
+
+```sh
+pnpm test
+```
+
+### Docs
+
+Run the docs server locally with hot-reloading for development:
+
+```sh
+pnpm run dev:docs
+```
