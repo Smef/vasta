@@ -23,6 +23,11 @@ export abstract class Model<DB, TB extends keyof DB & string> {
     this.attributes = { ...this.defaultAttributes, ...attributes } as unknown as Selectable<DB[TB]>;
   }
 
+  assign(attributes: Partial<Insertable<DB[TB]>>): this {
+    this.attributes = { ...this.attributes, ...attributes } as unknown as Selectable<DB[TB]>;
+    return this;
+  }
+
   toJSON(): Record<string, any> {
     const serialized: Record<string, any> = { ...this.attributes };
     for (const key of this.hidden) {

@@ -92,6 +92,27 @@ describe("constructor", () => {
   });
 });
 
+describe("assign", () => {
+  it("should mass assign attributes", () => {
+    const pet = new Pet({
+      name: "Original",
+      counter: 1,
+      type: "dog",
+    });
+
+    pet.assign({ name: "Fluffy", counter: 10 });
+
+    expect(pet.attributes.name).toBe("Fluffy");
+    expect(pet.attributes.counter).toBe(10);
+    expect(pet.attributes.type).toBe("dog");
+  });
+
+  it("should allow chaining", () => {
+    const pet = new Pet({ name: "Fluffy", type: "cat" });
+    expect(pet.assign({ counter: 5 })).toBe(pet);
+  });
+});
+
 describe("hydration", () => {
   it("should hydrate a model from database results", async () => {
     const result = await Pet.where("id", "=", 3).first();

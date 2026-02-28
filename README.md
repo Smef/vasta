@@ -134,6 +134,18 @@ export default class Pet extends defineModel({
 }) {
 ```
 
+### Mass Assignment
+
+Vasta supports mass assignment of attributes through the `assign` method. This allows you to update multiple attributes of a model instance in a single call. This functions similarly to `Object.assign(mode.attributes, newattributes)`
+
+````ts
+const pet = await Pet.findOrFail(1);
+pet.assign({
+  name: "New Name",
+  counter: pet.attributes.counter + 1,
+});
+await pet.save();
+
 ## Local Development
 
 ### Set up your database
