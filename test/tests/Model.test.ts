@@ -78,6 +78,18 @@ describe("constructor", () => {
     expect(pet.attributes.counter).toBe(1);
   });
 
+  it("should snapshot originalAttributes on instantiation", () => {
+    const pet = new Pet({
+      name: "Fluffy",
+      type: "cat",
+    });
+
+    // make sure default attributes are also set
+    expect(pet.originalAttributes.name).toBe("Fluffy");
+    expect(pet.originalAttributes.counter).toBe(0);
+    expect(pet.originalAttributes.type).toBe("cat");
+  });
+
   it("should have a type error when creating an instance with invalid attributes", () => {
     const pet = new Pet({
       name: "Fluffy",
@@ -109,6 +121,18 @@ describe("assign", () => {
   it("should allow chaining", () => {
     const pet = new Pet({ name: "Fluffy", type: "cat" });
     expect(pet.assign({ counter: 5 })).toBe(pet);
+  });
+
+  it("should mark model as dirty after assign", async () => {
+    const pet = await Pet.findOrFail(1);
+
+    expect(pet.isDirty()).toBe(false);
+    expect(pet.getDirty()).toEqual({});
+
+    pet.assign({ counter: 5 });
+
+    expect(pet.isDirty()).toBe(true);
+    expect(pet.getDirty()).toEqual({ counter: 5 });
   });
 });
 
@@ -331,8 +355,14 @@ describe("aggregates", () => {
 describe("save", () => {
   it("should insert a new record", async () => {
     const pet = new Pet({ name: "Fluffy", type: "cat", counter: 1 });
+    expect(pet.isDirty()).toBe(true);
+    expect(pet.getDirty()).toEqual({ name: "Fluffy", type: "cat", counter: 1 });
+
     await pet.save();
+
     expect(pet.attributes.id).toBeGreaterThan(0);
+    expect(pet.isDirty()).toBe(false);
+    expect(pet.getDirty()).toEqual({});
 
     // Clean up
     await pet.delete();
@@ -346,6 +376,45 @@ describe("save", () => {
 
     const updatedPet = await Pet.findOrFail(1);
     expect(updatedPet.attributes.counter).toBe(initialCounter + 1);
+  });
+
+  it("should only update dirty attributes", async () => {
+    const pet = await Pet.findOrFail(1);
+    const id = pet.attributes.id;
+    const initialCounter = pet.attributes.counter;
+    const externalName = `${pet.attributes.name}-external`;
+
+    await db.updateTable("pets").set({ name: externalName }).where("id", "=", id).execute();
+
+    const newCounter = initialCounter + 1;
+    pet.attributes.counter = newCounter;
+    expect(pet.isDirty()).toBe(true);
+    const dirty = pet.getDirty();
+    expect(dirty).toEqual({ counter: newCounter });
+
+    await pet.save();
+
+    const updatedPet = await Pet.findOrFail(id);
+    expect(updatedPet.attributes.counter).toBe(initialCounter + 1);
+    expect(updatedPet.attributes.name).toBe(externalName);
+
+    await db
+      .updateTable("pets")
+      .set({
+        name: pet.originalAttributes.name,
+        counter: initialCounter,
+      })
+      .where("id", "=", id)
+      .execute();
+  });
+
+  it("should skip update query when no attributes changed", async () => {
+    const pet = await Pet.findOrFail(1);
+
+    resetQueryCount();
+    await pet.save();
+
+    expect(getQueryCount()).toBe(0);
   });
 });
 

@@ -16,11 +16,13 @@ export abstract class Model<DB, TB extends keyof DB & string> {
   }
 
   attributes: Selectable<DB[TB]>;
+  originalAttributes: Selectable<DB[TB]>;
   exists = false;
   loadedRelations: Record<string, any> = {};
 
   constructor(attributes: Partial<Insertable<DB[TB]>> = {}) {
     this.attributes = { ...this.defaultAttributes, ...attributes } as unknown as Selectable<DB[TB]>;
+    this.originalAttributes = { ...this.attributes };
 
     return new Proxy(this, {
       get(target, prop, receiver) {
@@ -69,16 +71,53 @@ export abstract class Model<DB, TB extends keyof DB & string> {
 
   // --- Active Record Methods ---
 
+  getDirty(): Partial<Insertable<DB[TB]>> {
+    if (!this.exists) {
+      return { ...(this.attributes as unknown as Partial<Insertable<DB[TB]>>) };
+    }
+
+    const dirty: Partial<Insertable<DB[TB]>> = {};
+    const keys = new Set([
+      ...Object.keys(this.attributes as Record<string, unknown>),
+      ...Object.keys(this.originalAttributes as Record<string, unknown>),
+    ]);
+
+    for (const key of keys) {
+      const typedKey = key as keyof DB[TB] & string;
+      const currentValue = this.attributes[typedKey as keyof typeof this.attributes];
+      const originalValue = this.originalAttributes[typedKey as keyof typeof this.originalAttributes];
+
+      if (currentValue !== originalValue) {
+        dirty[typedKey as keyof Insertable<DB[TB]>] = currentValue as Insertable<DB[TB]>[keyof Insertable<DB[TB]>];
+      }
+    }
+
+    return dirty;
+  }
+
+  isDirty(): boolean {
+    return Object.keys(this.getDirty()).length > 0;
+  }
+
   async save(): Promise<this> {
     const pkValue = this.attributes[this.primaryKey as keyof typeof this.attributes];
 
     if (this.exists) {
+      const dirtyAttributes = this.getDirty();
+
+      if (Object.keys(dirtyAttributes).length === 0) {
+        return this;
+      }
+
       // UPDATE
       await (this.db as any)
         .updateTable(this.table)
-        .set(this.attributes as any)
+        .set(dirtyAttributes as any)
         .where(this.primaryKey as any, "=", pkValue)
         .executeTakeFirst();
+
+      // After successful update, sync originalAttributes with current attributes so we know if anything changes in the future
+      this.originalAttributes = { ...this.attributes };
     } else {
       // INSERT
       const result = await this.db
@@ -89,6 +128,7 @@ export abstract class Model<DB, TB extends keyof DB & string> {
 
       if (result) {
         this.attributes = result as any;
+        this.originalAttributes = { ...this.attributes };
         this.exists = true;
       }
     }
