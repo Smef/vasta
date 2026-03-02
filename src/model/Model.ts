@@ -447,10 +447,7 @@ export abstract class Model<DB, TB extends keyof DB & string> {
   /**
    * Defines a many-to-many relationship.
    */
-  belongsToMany<
-    R extends AnyModelConstructor,
-    P extends keyof DB & string
-  >(
+  belongsToMany<R extends AnyModelConstructor, P extends keyof DB & string>(
     relatedClass: R,
     pivotTable: P,
     foreignPivotKey: keyof DB[P] & string,
