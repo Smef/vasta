@@ -44,7 +44,7 @@ export abstract class Model<DB, TB extends keyof DB & string> {
     if (isNew) {
       const defaults = this.defaultAttributes;
       const evaluatedDefaults: Record<string, any> = {};
-      
+
       for (const [key, value] of Object.entries(defaults)) {
         evaluatedDefaults[key] = typeof value === "function" ? (value as any)() : value;
       }
