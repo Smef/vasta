@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { defineModel } from "vasta";
 
 import Pet from "@/database/models/Pet";
 import Person from "@/database/models/Person";
@@ -429,6 +430,177 @@ describe("delete", () => {
 
     const deletedPet = await Pet.find(id);
     expect(deletedPet).toBeUndefined();
+  });
+});
+
+describe("lifecycle events", () => {
+  function createEventedPetModel(eventNames: string[], payloadModels: unknown[]) {
+    return class EventedPet extends defineModel({
+      db,
+      table: "pets",
+      attributes: {
+        counter: 0,
+      },
+      events: {
+        creating: (model) => {
+          eventNames.push("creating");
+          payloadModels.push(model);
+        },
+        created: (model) => {
+          eventNames.push("created");
+          payloadModels.push(model);
+        },
+        updating: (model) => {
+          eventNames.push("updating");
+          payloadModels.push(model);
+        },
+        updated: (model) => {
+          eventNames.push("updated");
+          payloadModels.push(model);
+        },
+        saving: (model) => {
+          eventNames.push("saving");
+          payloadModels.push(model);
+        },
+        saved: (model) => {
+          eventNames.push("saved");
+          payloadModels.push(model);
+        },
+        deleting: (model) => {
+          eventNames.push("deleting");
+          payloadModels.push(model);
+        },
+        deleted: (model) => {
+          eventNames.push("deleted");
+          payloadModels.push(model);
+        },
+      },
+    }) {};
+  }
+
+  it("should dispatch creating/created and saving/saved for new models", async () => {
+    const eventNames: string[] = [];
+    const payloadModels: unknown[] = [];
+    const EventedPet = createEventedPetModel(eventNames, payloadModels);
+
+    const pet = new EventedPet({ name: "Event Cat", type: "cat" });
+    await pet.save();
+
+    expect(eventNames).toEqual(["saving", "creating", "created", "saved"]);
+    expect(payloadModels.every((model) => model === pet)).toBe(true);
+
+    await db.deleteFrom("pets").where("id", "=", pet.attributes.id).executeTakeFirst();
+  });
+
+  it("should dispatch updating/updated and saving/saved for dirty existing models", async () => {
+    const eventNames: string[] = [];
+    const payloadModels: unknown[] = [];
+    const EventedPet = createEventedPetModel(eventNames, payloadModels);
+
+    const pet = await EventedPet.findOrFail(1);
+    const originalCounter = pet.attributes.counter;
+
+    pet.attributes.counter = originalCounter + 1;
+    await pet.save();
+
+    expect(eventNames).toEqual(["saving", "updating", "updated", "saved"]);
+    expect(payloadModels.every((model) => model === pet)).toBe(true);
+
+    await db.updateTable("pets").set({ counter: originalCounter }).where("id", "=", 1).executeTakeFirst();
+  });
+
+  it("should dispatch saving/saved for clean existing models", async () => {
+    const eventNames: string[] = [];
+    const payloadModels: unknown[] = [];
+    const EventedPet = createEventedPetModel(eventNames, payloadModels);
+
+    const pet = await EventedPet.findOrFail(1);
+    await pet.save();
+
+    expect(eventNames).toEqual(["saving", "saved"]);
+    expect(payloadModels).toEqual([pet, pet]);
+  });
+
+  it("should dispatch deleting/deleted when deleting a model", async () => {
+    const eventNames: string[] = [];
+    const payloadModels: unknown[] = [];
+    const EventedPet = createEventedPetModel(eventNames, payloadModels);
+
+    const pet = new EventedPet({ name: "Delete Event Dog", type: "dog" });
+    await pet.save();
+
+    eventNames.length = 0;
+    payloadModels.length = 0;
+
+    await pet.delete();
+
+    expect(eventNames).toEqual(["deleting", "deleted"]);
+    expect(payloadModels).toEqual([pet, pet]);
+  });
+
+  it("should await async lifecycle events during save", async () => {
+    const eventNames: string[] = [];
+
+    const AsyncEventedPet = class extends defineModel({
+      db,
+      table: "pets",
+      attributes: {
+        counter: 0,
+      },
+      events: {
+        saving: async () => {
+          eventNames.push("saving:start");
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          eventNames.push("saving:end");
+        },
+        creating: () => {
+          eventNames.push("creating");
+        },
+        created: () => {
+          eventNames.push("created");
+        },
+        saved: () => {
+          eventNames.push("saved");
+        },
+      },
+    }) {};
+
+    const pet = new AsyncEventedPet({ name: "Async Save Cat", type: "cat" });
+    await pet.save();
+
+    expect(eventNames).toEqual(["saving:start", "saving:end", "creating", "created", "saved"]);
+
+    await db.deleteFrom("pets").where("id", "=", pet.attributes.id).executeTakeFirst();
+  });
+
+  it("should await async lifecycle events during delete", async () => {
+    const eventNames: string[] = [];
+
+    const AsyncDeleteEventedPet = class extends defineModel({
+      db,
+      table: "pets",
+      attributes: {
+        counter: 0,
+      },
+      events: {
+        deleting: async () => {
+          eventNames.push("deleting:start");
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          eventNames.push("deleting:end");
+        },
+        deleted: () => {
+          eventNames.push("deleted");
+        },
+      },
+    }) {};
+
+    const pet = new AsyncDeleteEventedPet({ name: "Async Delete Dog", type: "dog" });
+    await pet.save();
+
+    eventNames.length = 0;
+    await pet.delete();
+
+    expect(eventNames).toEqual(["deleting:start", "deleting:end", "deleted"]);
   });
 });
 

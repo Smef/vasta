@@ -5,11 +5,30 @@ import { Builder, RelationBuilder } from "@src/model/Builder";
 
 export type AnyModelConstructor = abstract new (...args: any[]) => Model<any, any>;
 
+export type ModelLifecycleEventName =
+  | "creating"
+  | "created"
+  | "updating"
+  | "updated"
+  | "saving"
+  | "saved"
+  | "deleting"
+  | "deleted";
+
+export type ModelLifecycleEventHandler<M extends Model<any, any>> = {
+  bivarianceHack(model: M): void | Promise<void>;
+}["bivarianceHack"];
+
+export type ModelLifecycleEvents<M extends Model<any, any>> = Partial<
+  Record<ModelLifecycleEventName, ModelLifecycleEventHandler<M>>
+>;
+
 export abstract class Model<DB, TB extends keyof DB & string> {
   abstract db: Kysely<DB>;
   abstract table: TB;
   abstract primaryKey: keyof DB[TB] & string;
   hidden: (keyof DB[TB] & string)[] = [];
+  events: ModelLifecycleEvents<Model<DB, TB>> = {};
 
   get defaultAttributes(): Partial<Insertable<DB[TB]>> {
     return {};
@@ -88,7 +107,9 @@ export abstract class Model<DB, TB extends keyof DB & string> {
       const originalValue = this.originalAttributes[typedKey as keyof typeof this.originalAttributes];
 
       if (currentValue !== originalValue) {
-        dirty[typedKey as keyof Insertable<DB[TB]>] = currentValue as Insertable<DB[TB]>[keyof Insertable<DB[TB]>];
+        dirty[typedKey as keyof Insertable<DB[TB]>] = currentValue as unknown as Insertable<DB[TB]>[keyof Insertable<
+          DB[TB]
+        >];
       }
     }
 
@@ -99,13 +120,30 @@ export abstract class Model<DB, TB extends keyof DB & string> {
     return Object.keys(this.getDirty()).length > 0;
   }
 
+  async dispatchEvent(eventName: ModelLifecycleEventName): Promise<void> {
+    await this.events[eventName]?.(this);
+  }
+
   async save(): Promise<this> {
     const pkValue = this.attributes[this.primaryKey as keyof typeof this.attributes];
+    const isNewModel = !this.exists;
+
+    await this.dispatchEvent("saving");
+
+    if (isNewModel) {
+      await this.dispatchEvent("creating");
+    }
 
     if (this.exists) {
       const dirtyAttributes = this.getDirty();
+      const isUpdating = Object.keys(dirtyAttributes).length > 0;
 
-      if (Object.keys(dirtyAttributes).length === 0) {
+      if (isUpdating) {
+        await this.dispatchEvent("updating");
+      }
+
+      if (!isUpdating) {
+        await this.dispatchEvent("saved");
         return this;
       }
 
@@ -118,6 +156,7 @@ export abstract class Model<DB, TB extends keyof DB & string> {
 
       // After successful update, sync originalAttributes with current attributes so we know if anything changes in the future
       this.originalAttributes = { ...this.attributes };
+      await this.dispatchEvent("updated");
     } else {
       // INSERT
       const result = await this.db
@@ -130,8 +169,11 @@ export abstract class Model<DB, TB extends keyof DB & string> {
         this.attributes = result as any;
         this.originalAttributes = { ...this.attributes };
         this.exists = true;
+        await this.dispatchEvent("created");
       }
     }
+
+    await this.dispatchEvent("saved");
     return this;
   }
 
@@ -139,6 +181,8 @@ export abstract class Model<DB, TB extends keyof DB & string> {
     if (!this.exists) {
       throw new Error("Cannot delete a model that doesn't exist in the database");
     }
+
+    await this.dispatchEvent("deleting");
 
     const pkValue = this.attributes[this.primaryKey as keyof typeof this.attributes];
     const result = await (this.db as any)
@@ -148,6 +192,7 @@ export abstract class Model<DB, TB extends keyof DB & string> {
 
     if (result.numDeletedRows > 0n) {
       this.exists = false;
+      await this.dispatchEvent("deleted");
       return true;
     }
     return false;
@@ -370,17 +415,21 @@ export interface ModelConfig<DB, TB extends keyof DB & string> {
   primaryKey?: keyof DB[TB] & string;
   hidden?: (keyof DB[TB] & string)[];
   attributes?: Partial<Insertable<DB[TB]>>;
+  events?: ModelLifecycleEvents<Model<DB, TB>>;
 }
 
-export function defineModel<DB, TB extends keyof DB & string, DA extends Partial<Insertable<DB[TB]>> = {}>(
-  config: ModelConfig<DB, TB> & { attributes?: DA },
-) {
+export function defineModel<
+  DB,
+  TB extends keyof DB & string,
+  DA extends Partial<Insertable<DB[TB]>> = Record<never, never>,
+>(config: ModelConfig<DB, TB> & { attributes?: DA }) {
   abstract class BaseModel extends Model<DB, TB> {
     db = config.db;
     table = config.table;
     // Fallback to "id" if not provided, explicitly cast to keep TypeScript happy
     primaryKey = (config.primaryKey ?? "id") as keyof DB[TB] & string;
     hidden = config.hidden ?? [];
+    events = (config.events ?? {}) as ModelLifecycleEvents<Model<DB, TB>>;
 
     get defaultAttributes(): Partial<Insertable<DB[TB]>> {
       return (config.attributes ?? {}) as Partial<Insertable<DB[TB]>>;
