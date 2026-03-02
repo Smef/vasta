@@ -1,7 +1,7 @@
 ---
 seo:
-  title: Vasta - Type-safe eloquent model layer for Kysely
-  description: Define your models and relationsh
+  title: Vasta - Type-safe ORM model layer for Kysely
+  description: Define your models and relationships in a type-safe way with Vasta.
 ---
 
 ::u-page-hero
