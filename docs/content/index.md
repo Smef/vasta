@@ -1,15 +1,25 @@
 ---
 seo:
   title: Vasta - Type-safe eloquent model layer for Kysely
-  description: Define your models and relationships in a clean and intuitive way, while still leveraging the power and flexibility of Kysely for your database interactions.
+  description: Define your models and relationsh
 ---
 
 ::u-page-hero
+---
+
+---
 #title
-Vasta
+  :::u-color-mode-image
+  ---
+  light: "/img/logo/wordmark-dark.svg"
+  dark: "/img/logo/wordmark-light.svg"
+  alt: "Vasta Logo"
+  class: "w-auto max-w-96 mx-auto"
+  ---
+  :::
 
 #description
-Vasta is a type-safe eloquent model layer for [Kysely](https://kysely.dev/) with syntax and usage inspired by [Laravel's Eloquent ORM](https://laravel.com/docs/12.x/eloquent).
+<p>A <span class=" italic underline text-black dark:text-white italics">type-safe</span> active record model layer for <a href="https://kysely.dev/" target="_blank">Kysely</a> with syntax and usage inspired by <a href="https://laravel.com/docs/12.x/eloquent" target="_blank">Laravel's Eloquent ORM</a>.</p>
 
 #links
   :::u-button
@@ -32,4 +42,22 @@ Vasta is a type-safe eloquent model layer for [Kysely](https://kysely.dev/) with
   ---
   GitHub
   :::
+
+#default
+
+  :::u-page-card
+  ---
+  class: max-w-2xl mx-auto
+  title: "Simple active record pattern"
+  ---
+  ```js
+  const pet = await Pet.findOrFail(1);
+  pet.name = "Fluffy";
+  await pet.save();
+  ```
+  :::
+
+
 ::
+
+

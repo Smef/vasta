@@ -1,0 +1,2 @@
+# ignore md for now, since it doesn't work well for mdx
+/docs/**/*.md
