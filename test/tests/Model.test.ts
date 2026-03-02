@@ -224,9 +224,15 @@ describe("query", () => {
       .where("name", "=", "Zuko")
       .executeTakeFirst();
 
-    expect(result).toBeDefined();
-    if (!result) return;
-    expect(result.attributes.upper_name_cb).toBe("Zuko");
+    expectToBeDefined(result);
+
+    // @ts-expect-error - Counter should not be defined, even though it's a default attribute
+    expect(result.counter).toBeUndefined();
+    // @ts-expect-error - Type should not be defined
+    expect(result.type).toBeUndefined();
+    // @ts-expect-error - Type should not be defined
+    expect(result.attributes.type).toBeUndefined();
+    expect(result.attributes.upper_name_cb).toBe("ZUKO");
     expect(result.upper_name_cb).toBe("ZUKO");
   });
 
@@ -239,6 +245,14 @@ describe("query", () => {
     // expect a type error on id
     // @ts-expect-error
     expect(result.attributes.id).toBeUndefined();
+
+    // @ts-expect-error - Counter should not be defined, even though it's a default attribute
+    expect(result.counter).toBeUndefined();
+    // @ts-expect-error - Type should not be defined
+    expect(result.type).toBeUndefined();
+    // @ts-expect-error - Type should not be defined
+    expect(result.attributes.type).toBeUndefined();
+    result.name = "Zuko2"; // should allow dynamic access to selected column
   });
 
   it("should find a model by id using find", async () => {

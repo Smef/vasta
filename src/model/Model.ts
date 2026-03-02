@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { Insertable, Kysely, Selectable, Expression, ExpressionBuilder, AliasedExpression } from "kysely";
-import { Builder, RelationBuilder, ExtractDB, ExtractTB } from "@src/model/Builder";
+import { Insertable, Kysely, Selectable, ExpressionBuilder } from "kysely";
+import { Builder, RelationBuilder, ExtractDB, ExtractTB, Selection, ExtractSelection } from "@src/model/Builder";
 
 export type AnyModelConstructor = abstract new (...args: any[]) => Model<any, any>;
 
@@ -39,8 +39,13 @@ export abstract class Model<DB, TB extends keyof DB & string> {
   exists = false;
   loadedRelations: Record<string, any> = {};
 
-  constructor(attributes: Partial<Insertable<DB[TB]>> = {}) {
-    this.attributes = { ...this.defaultAttributes, ...attributes } as unknown as Selectable<DB[TB]>;
+  constructor(attributes: Partial<Insertable<DB[TB]>> = {}, isNew = true) {
+    if (isNew) {
+      this.attributes = { ...this.defaultAttributes, ...attributes } as unknown as Selectable<DB[TB]>;
+    } else {
+      this.attributes = attributes as unknown as Selectable<DB[TB]>;
+    }
+
     this.originalAttributes = { ...this.attributes };
 
     return new Proxy(this, {
@@ -148,11 +153,11 @@ export abstract class Model<DB, TB extends keyof DB & string> {
       }
 
       // UPDATE
-      await (this.db as any)
+      const query = (this.db as any)
         .updateTable(this.table)
         .set(dirtyAttributes as any)
-        .where(this.primaryKey as any, "=", pkValue)
-        .executeTakeFirst();
+        .where(this.primaryKey as any, "=", pkValue);
+      await query.executeTakeFirst();
 
       // After successful update, sync originalAttributes with current attributes so we know if anything changes in the future
       this.originalAttributes = { ...this.attributes };
@@ -329,14 +334,10 @@ export abstract class Model<DB, TB extends keyof DB & string> {
   /**
    * Static pass-through for select()
    */
-  static select<T extends AnyModelConstructor, K extends (keyof InstanceType<T>["attributes"] & string) | string>(
+  static select<T extends AnyModelConstructor, const K extends Selection<InstanceType<T>>>(
     this: T,
-    columns:
-      | (K | Expression<unknown> | AliasedExpression<any, any>)[]
-      | ((
-          eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>,
-        ) => (K | Expression<unknown> | AliasedExpression<any, any>)[]),
-  ): Builder<InstanceType<T>, K> {
+    columns: K[] | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => K[]),
+  ): Builder<InstanceType<T>, ExtractSelection<K>> {
     return (this as any).query().select(columns);
   }
 
@@ -439,8 +440,8 @@ export function defineModel<
       return (config.attributes ?? {}) as Partial<Insertable<DB[TB]>>;
     }
 
-    constructor(attributes: ModelConstructorArgs<Insertable<DB[TB]>, Exclude<DA, undefined>>) {
-      super(attributes as any);
+    constructor(attributes: ModelConstructorArgs<Insertable<DB[TB]>, Exclude<DA, undefined>>, isNew = true) {
+      super(attributes as any, isNew);
     }
   }
 

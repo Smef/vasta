@@ -13,12 +13,14 @@ export type RelationMetadata = {
 
 export type SelectedModel<M extends Model<any, any>, S extends keyof M["attributes"] | string = never> = Omit<
   M,
-  "attributes"
+  "attributes" | (keyof M["attributes"] & string)
 > & {
   attributes: [S] extends [never]
     ? M["attributes"]
     : Pick<M["attributes"], S & keyof M["attributes"]> & Record<Exclude<S, keyof M["attributes"]>, any>;
-} & Record<Exclude<S, keyof M["attributes"]>, any>;
+} & ([S] extends [never]
+    ? M["attributes"]
+    : Pick<M["attributes"], S & keyof M["attributes"]> & Record<Exclude<S, keyof M["attributes"]>, any>);
 
 // Define the shape of our constraints
 type Constraint =
@@ -29,6 +31,13 @@ type Constraint =
 
 export type ExtractDB<M> = M extends Model<infer D, any> ? D : never;
 export type ExtractTB<M> = M extends Model<any, infer T> ? T : never;
+
+export type Selection<M extends Model<any, any>> =
+  | (keyof M["attributes"] & string)
+  | Expression<unknown>
+  | AliasedExpression<any, any>;
+
+export type ExtractSelection<T> = T extends string ? T : T extends AliasedExpression<any, infer A> ? A : never;
 
 export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] | string = never> {
   protected constraints: Constraint[] = [];
@@ -86,13 +95,9 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
   /**
    * Specify which columns to fetch from the database.
    */
-  select<K extends (keyof M["attributes"] & string) | string>(
-    columns:
-      | (K | Expression<unknown> | AliasedExpression<any, any>)[]
-      | ((
-          eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>,
-        ) => (K | Expression<unknown> | AliasedExpression<any, any>)[]),
-  ): Builder<M, S | K> {
+  select<const K extends Selection<M>>(
+    columns: K[] | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => K[]),
+  ): Builder<M, S | ExtractSelection<K>> {
     if (typeof columns === "function") {
       this.selectedColumns.push(columns);
     } else {
@@ -100,7 +105,7 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
       this.selectedColumns.push(...columns);
     }
     // We must cast here because we are technically changing the builder's type signature
-    return this as unknown as Builder<M, S | K>;
+    return this as unknown as Builder<M, S | ExtractSelection<K>>;
   }
 
   with(...relations: string[]): this {
@@ -208,7 +213,9 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
   async get(): Promise<SelectedModel<M, S>[]> {
     const rows = await this.compileQuery().execute();
     const instances = rows.map((row: any) => {
-      const instance = new (this.modelConstructor as any)(row);
+      // Pass isNew=false (the second arg) so we don't apply defaults
+      // The constructor takes (attributes, isNew)
+      const instance = new (this.modelConstructor as any)(row, false);
       instance.exists = true;
       return instance as SelectedModel<M, S>;
     });
@@ -218,13 +225,14 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
   }
 
   async executeTakeFirst(): Promise<SelectedModel<M, S> | undefined> {
-    const row = await this.compileQuery().executeTakeFirst() as any;
+    const row = (await this.compileQuery().executeTakeFirst()) as any;
     // console.log("ROW:", row);
     // console.log("Selected Columns:", this.selectedColumns);
 
     if (!row) return undefined;
 
-    const instance = new (this.modelConstructor as any)(row);
+    // Pass isNew=false (the second arg) so we don't apply defaults
+    const instance = new (this.modelConstructor as any)(row, false);
     instance.exists = true;
 
     await this.eagerLoad([instance]);
