@@ -10,6 +10,6 @@ export default class Person extends defineModel({
   // A Person has many Pets
   get pets() {
     // We pass the Pet class, and the foreign key column on the pets table
-    return this.hasMany(Pet, "person_id", "id", "pets");
+    return this.hasMany(Pet, "person_id", "id");
   }
 }

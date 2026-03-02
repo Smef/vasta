@@ -2,6 +2,7 @@
 
 import { Insertable, Kysely, Selectable, ExpressionBuilder, Expression } from "kysely";
 import { Builder, RelationBuilder, ExtractDB, ExtractTB, Selection, ExtractSelection } from "@src/model/Builder";
+import { getCallerMethodName } from "@src/util/caller";
 
 export type AnyModelConstructor = abstract new (...args: any[]) => Model<any, any>;
 
@@ -384,7 +385,7 @@ export abstract class Model<DB, TB extends keyof DB & string> {
     relationName?: string, // Optional cache key override
   ): RelationBuilder<InstanceType<R>, InstanceType<R> | undefined> {
     const fkValue = this.attributes[foreignKey];
-    const cacheKey = relationName || relatedClass.name;
+    const cacheKey = relationName || getCallerMethodName() || relatedClass.name;
 
     const builder = new RelationBuilder<InstanceType<R>, InstanceType<R> | undefined>(
       relatedClass,
@@ -415,7 +416,7 @@ export abstract class Model<DB, TB extends keyof DB & string> {
   ): RelationBuilder<InstanceType<R>, InstanceType<R>[]> {
     const lKey = localKey || (this.primaryKey as string);
     const localValue = this.attributes[lKey as keyof typeof this.attributes];
-    const cacheKey = relationName || relatedClass.name + "_many";
+    const cacheKey = relationName || getCallerMethodName() || relatedClass.name + "_many";
 
     const builder = new RelationBuilder<InstanceType<R>, InstanceType<R>[]>(
       relatedClass,
