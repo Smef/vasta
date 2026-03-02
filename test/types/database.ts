@@ -3,6 +3,8 @@ import { ColumnType, Generated, Insertable, JSONColumnType, Selectable, Updateab
 export type Database = {
   people: PeopleTable;
   pets: PetsTable;
+  vets: VetsTable;
+  vet_visits: VetVisitsTable;
 };
 
 // This interface describes the `person` table to Kysely. Table
@@ -57,3 +59,21 @@ export interface PetsTable {
 export type Pet = Selectable<PetsTable>;
 export type NewPet = Insertable<PetsTable>;
 export type PetUpdate = Updateable<PetsTable>;
+
+export interface VetsTable {
+  id: Generated<number>;
+  name: string;
+}
+export type Vet = Selectable<VetsTable>;
+export type NewVet = Insertable<VetsTable>;
+export type VetUpdate = Updateable<VetsTable>;
+
+export interface VetVisitsTable {
+  id: Generated<number>;
+  pet_id: number;
+  vet_id: number;
+  visit_date: ColumnType<Date, string | undefined, never>;
+}
+export type VetVisit = Selectable<VetVisitsTable>;
+export type NewVetVisit = Insertable<VetVisitsTable>;
+export type VetVisitUpdate = Updateable<VetVisitsTable>;

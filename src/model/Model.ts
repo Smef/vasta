@@ -387,11 +387,11 @@ export abstract class Model<DB, TB extends keyof DB & string> {
    */
   belongsTo<R extends AnyModelConstructor>(
     relatedClass: R,
-    foreignKey: keyof this["attributes"] & string,
-    ownerKey: string = "id",
+    foreignKey: keyof DB[TB] & string,
+    ownerKey: keyof InstanceType<R>["attributes"] & string = "id" as any,
     relationName?: string, // Optional cache key override
   ): RelationBuilder<InstanceType<R>, InstanceType<R> | undefined> {
-    const fkValue = this.attributes[foreignKey];
+    const fkValue = this.attributes[foreignKey as unknown as keyof Selectable<DB[TB]>];
     const cacheKey = relationName || getCallerMethodName() || relatedClass.name;
 
     const builder = new RelationBuilder<InstanceType<R>, InstanceType<R> | undefined>(
@@ -408,7 +408,8 @@ export abstract class Model<DB, TB extends keyof DB & string> {
       },
     );
 
-    return builder.where(ownerKey, "=", fkValue);
+    builder.where(ownerKey, "=", fkValue);
+    return builder._markClean();
   }
 
   /**
@@ -417,8 +418,8 @@ export abstract class Model<DB, TB extends keyof DB & string> {
    */
   hasMany<R extends AnyModelConstructor>(
     relatedClass: R,
-    foreignKey: string, // The column on the related table (e.g., 'person_id')
-    localKey?: keyof this["attributes"] & string,
+    foreignKey: keyof InstanceType<R>["attributes"] & string, // The column on the related table
+    localKey?: keyof DB[TB] & string,
     relationName?: string,
   ): RelationBuilder<InstanceType<R>, InstanceType<R>[]> {
     const lKey = localKey || (this.primaryKey as string);
@@ -439,7 +440,58 @@ export abstract class Model<DB, TB extends keyof DB & string> {
       },
     );
 
-    return builder.where(foreignKey, "=", localValue);
+    builder.where(foreignKey, "=", localValue);
+    return builder._markClean();
+  }
+
+  /**
+   * Defines a many-to-many relationship.
+   */
+  belongsToMany<
+    R extends AnyModelConstructor,
+    P extends keyof DB & string
+  >(
+    relatedClass: R,
+    pivotTable: P,
+    foreignPivotKey: keyof DB[P] & string,
+    relatedPivotKey: keyof DB[P] & string,
+    parentKey?: keyof DB[TB] & string,
+    relatedKey?: keyof InstanceType<R>["attributes"] & string,
+    relationName?: string,
+  ): RelationBuilder<InstanceType<R>, InstanceType<R>[]> {
+    const parentK = parentKey || (this.primaryKey as string);
+    const relatedK = relatedKey || "id";
+    const localValue = this.attributes[parentK as keyof typeof this.attributes];
+    const cacheKey = relationName || getCallerMethodName() || relatedClass.name + "_many";
+
+    const builder = new RelationBuilder<InstanceType<R>, InstanceType<R>[]>(
+      relatedClass,
+      (b) => b.get() as any, // Resolves to an array
+      cacheKey,
+      this,
+      {
+        type: "belongsToMany",
+        relatedClass,
+        matchThisKey: parentK as string,
+        matchRelatedKey: relatedK,
+        relationName: cacheKey,
+        pivotTable,
+        foreignPivotKey,
+        relatedPivotKey,
+      },
+    );
+
+    const dummy = new (relatedClass as any)({});
+    const table = dummy.table;
+
+    // Join the pivot table and filter by the local value
+    builder
+      .innerJoin(pivotTable, `${pivotTable}.${relatedPivotKey}`, `${table}.${relatedK}`)
+      .where(`${pivotTable}.${foreignPivotKey}`, "=", localValue)
+      .selectAll(table)
+      .select([`${pivotTable}.${foreignPivotKey} as _pivot_foreign_key` as any]);
+
+    return builder._markClean() as unknown as RelationBuilder<InstanceType<R>, InstanceType<R>[]>;
   }
 }
 

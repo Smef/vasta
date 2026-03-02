@@ -4,11 +4,14 @@ import { Model } from "@src/model/Model";
 export type AnyModelConstructor = abstract new (...args: any[]) => Model<any, any>;
 
 export type RelationMetadata = {
-  type: "hasMany" | "belongsTo" | "hasOne";
+  type: "hasMany" | "belongsTo" | "hasOne" | "belongsToMany";
   relatedClass: AnyModelConstructor;
   matchThisKey: string;
   matchRelatedKey: string;
   relationName: string;
+  pivotTable?: string;
+  foreignPivotKey?: string;
+  relatedPivotKey?: string;
 };
 
 export type SelectedModel<M extends Model<any, any>, S extends keyof M["attributes"] | string = never> = Omit<
@@ -30,6 +33,13 @@ type Constraint =
   | { type: "whereNotNull"; column: any }
   | { type: "whereExpression"; expression: any };
 
+type JoinConstraint = {
+  type: "innerJoin" | "leftJoin";
+  table: string;
+  col1: string;
+  col2: string;
+};
+
 export type ExtractDB<M> = M extends Model<infer D, any> ? D : never;
 export type ExtractTB<M> = M extends Model<any, infer T> ? T : never;
 
@@ -42,12 +52,14 @@ export type ExtractSelection<T> = T extends string ? T : T extends AliasedExpres
 
 export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] | string = never> {
   protected constraints: Constraint[] = [];
+  protected joinConstraints: JoinConstraint[] = [];
   protected selectedColumns: (
     | string
     | Expression<unknown>
     | AliasedExpression<any, any>
     | ((eb: any) => (string | Expression<unknown> | AliasedExpression<any, any>)[])
   )[] = []; // Track our columns
+  protected selectAllTables: string[] = [];
   protected eagerLoads: string[] = [];
   protected limitValue?: number;
   protected offsetValue?: number;
@@ -127,6 +139,11 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
     return this;
   }
 
+  innerJoin(table: string, col1: string, col2: string): this {
+    this.joinConstraints.push({ type: "innerJoin", table, col1, col2 });
+    return this;
+  }
+
   limit(value: number): this {
     this.limitValue = value;
     return this;
@@ -151,6 +168,11 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
     }
     // We must cast here because we are technically changing the builder's type signature
     return this as unknown as Builder<M, S | ExtractSelection<K>>;
+  }
+
+  selectAll(table: string): this {
+    this.selectAllTables.push(table);
+    return this;
   }
 
   with(...relations: string[]): this {
@@ -184,7 +206,24 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
         continue;
       }
 
-      const relatedRecords = await (meta.relatedClass as any).query().whereIn(meta.matchRelatedKey, keys).get();
+      let relatedRecords: any[];
+      if (meta.type === "belongsToMany") {
+        const dummy = new (meta.relatedClass as any)({});
+        const table = dummy.table;
+        relatedRecords = await (meta.relatedClass as any)
+          .query()
+          .innerJoin(
+            meta.pivotTable!,
+            `${meta.pivotTable!}.${meta.relatedPivotKey!}`,
+            `${table}.${meta.matchRelatedKey}`,
+          )
+          .whereIn(`${meta.pivotTable!}.${meta.foreignPivotKey!}`, keys)
+          .selectAll(table)
+          .select([`${meta.pivotTable!}.${meta.foreignPivotKey!} as _pivot_foreign_key`])
+          .get();
+      } else {
+        relatedRecords = await (meta.relatedClass as any).query().whereIn(meta.matchRelatedKey, keys).get();
+      }
 
       for (const model of models) {
         if (!model.loadedRelations) {
@@ -196,6 +235,10 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
         if (meta.type === "hasMany") {
           model.loadedRelations[meta.relationName] = relatedRecords.filter(
             (record: any) => record.attributes[meta.matchRelatedKey] === myValue,
+          );
+        } else if (meta.type === "belongsToMany") {
+          model.loadedRelations[meta.relationName] = relatedRecords.filter(
+            (record: any) => record.attributes["_pivot_foreign_key"] === myValue,
           );
         } else {
           model.loadedRelations[meta.relationName] =
@@ -215,7 +258,18 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
     // Start the query
     let query = db.selectFrom(table);
 
+    // Apply joins
+    for (const j of this.joinConstraints) {
+      if (j.type === "innerJoin") {
+        query = query.innerJoin(j.table as any, j.col1 as any, j.col2 as any) as any;
+      }
+    }
+
     // Apply specific columns or fall back to selectAll()
+    for (const table of this.selectAllTables) {
+      query = query.selectAll(table as any) as any;
+    }
+
     if (this.selectedColumns.length > 0) {
       // We need to re-map the selected columns to handle callbacks separately
       const simpleColumns = this.selectedColumns.filter((c) => typeof c !== "function");
@@ -228,7 +282,7 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
       for (const callback of callbacks) {
         query = query.select(callback as any) as any;
       }
-    } else {
+    } else if (this.selectAllTables.length === 0) {
       query = query.selectAll() as any;
     }
 
@@ -256,7 +310,7 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
     return query;
   }
 
-  async get(): Promise<SelectedModel<M, S>[]> {
+  async execute(): Promise<SelectedModel<M, S>[]> {
     const rows = await this.compileQuery().execute();
     const instances = rows.map((row: any) => {
       // Pass isNew=false (the second arg) so we don't apply defaults
@@ -268,6 +322,10 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
 
     await this.eagerLoad(instances);
     return instances;
+  }
+
+  async get(): Promise<SelectedModel<M, S>[]> {
+    return this.execute();
   }
 
   async executeTakeFirst(): Promise<SelectedModel<M, S> | undefined> {
@@ -462,6 +520,9 @@ export default Builder;
  * If awaited directly, it executes the query and caches the result.
  */
 export class RelationBuilder<M extends Model<any, any>, R> extends Builder<M> implements PromiseLike<R> {
+  protected initialConstraintsCount = 0;
+  protected initialSelectedColumnsCount = 0;
+
   constructor(
     modelConstructor: AnyModelConstructor,
     private resolver: (builder: Builder<M>) => Promise<R>,
@@ -470,6 +531,12 @@ export class RelationBuilder<M extends Model<any, any>, R> extends Builder<M> im
     public relationMetadata: RelationMetadata,
   ) {
     super(modelConstructor);
+  }
+
+  public _markClean() {
+    this.initialConstraintsCount = this.constraints.length;
+    this.initialSelectedColumnsCount = this.selectedColumns.length;
+    return this;
   }
 
   then<TResult1 = R, TResult2 = never>(
@@ -484,7 +551,10 @@ export class RelationBuilder<M extends Model<any, any>, R> extends Builder<M> im
 
     // Safety Check: If the user chained .where() or .limit(), we DO NOT cache it,
     // because it is a filtered subset, not the full relationship.
-    const isModified = this.constraints.length > 1 || this.selectedColumns.length > 0 || this.limitValue !== undefined;
+    const isModified =
+      this.constraints.length > Math.max(1, this.initialConstraintsCount) ||
+      this.selectedColumns.length > this.initialSelectedColumnsCount ||
+      this.limitValue !== undefined;
 
     // 1. Return from cache if untouched and available
     if (!isModified && this.cacheKey in cache) {

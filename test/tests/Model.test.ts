@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import { defineModel } from "vasta-orm";
 
 import Pet from "@/database/models/Pet";
+import Vet from "../database/models/Vet";
+import VetVisit from "../database/models/VetVisit";
 import Person from "@/database/models/Person";
 import { getQueryCount, resetQueryCount } from "@/database/db";
 import db from "@/database/db";
@@ -801,6 +803,67 @@ describe("relationships", () => {
     const owner = await pets[0].owner;
     expect(owner).toBe(pets[0].loadedRelations.owner);
     expect(owner?.attributes.id).toBe(pets[0].attributes.person_id);
+  });
+
+  it("should find models using a many-to-many relationship", async () => {
+    const pet = await Pet.findOrFail(1);
+    const vets = await pet.vets;
+    expect(vets.length).toBe(2);
+    expect(vets[0].attributes.name).toBe("Dr. Smith");
+    expect(vets[1].attributes.name).toBe("Dr. Jones");
+  });
+
+  it("should eager load belongsToMany relations with with()", async () => {
+    resetQueryCount();
+    const pets = await Pet.with("vets").orderBy("id", "asc").limit(2).get();
+
+    expect(pets).toHaveLength(2);
+    expect(pets[0].loadedRelations.vets).toBeDefined();
+    expect(pets[1].loadedRelations.vets).toBeDefined();
+    expect(getQueryCount()).toBe(2);
+
+    const firstPetVets = await pets[0].vets;
+    expect(firstPetVets).toBe(pets[0].loadedRelations.vets);
+    expect(firstPetVets).toHaveLength(2);
+    expect(firstPetVets[0].attributes.name).toBe("Dr. Smith");
+
+    const secondPetVets = await pets[1].vets;
+    expect(secondPetVets).toBe(pets[1].loadedRelations.vets);
+    expect(secondPetVets).toHaveLength(1);
+    expect(secondPetVets[0].attributes.name).toBe("Dr. Smith");
+
+    expect(getQueryCount()).toBe(2);
+  });
+
+  it("should eager load both vets and owner using with()", async () => {
+    resetQueryCount();
+    const pets = await Pet.with("vets", "owner").orderBy("id", "asc").limit(2).get();
+
+    expect(pets).toHaveLength(2);
+    expect(pets[0].loadedRelations.vets).toBeDefined();
+    expect(pets[0].loadedRelations.owner).toBeDefined();
+    expect(getQueryCount()).toBe(3);
+
+    const firstPetVets = await pets[0].vets;
+    expect(firstPetVets).toBe(pets[0].loadedRelations.vets);
+    expect(firstPetVets).toHaveLength(2);
+
+    const firstPetOwner = await pets[0].owner;
+    expect(firstPetOwner).toBe(pets[0].loadedRelations.owner);
+    expect(firstPetOwner?.attributes.id).toBe(pets[0].attributes.person_id);
+
+    expect(pets[1].loadedRelations.vets).toBeDefined();
+    expect(pets[1].loadedRelations.owner).toBeDefined();
+
+    const secondPetVets = await pets[1].vets;
+    expect(secondPetVets).toBe(pets[1].loadedRelations.vets);
+    expect(secondPetVets).toHaveLength(1);
+
+    const secondPetOwner = await pets[1].owner;
+    expect(secondPetOwner).toBe(pets[1].loadedRelations.owner);
+    expect(secondPetOwner?.attributes.id).toBe(pets[1].attributes.person_id);
+
+    expect(getQueryCount()).toBe(3);
   });
 
   it("should throw when eager loading an invalid relation", async () => {
