@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { Insertable, Kysely, Selectable, ExpressionBuilder } from "kysely";
+import { Insertable, Kysely, Selectable, ExpressionBuilder, Expression } from "kysely";
 import { Builder, RelationBuilder, ExtractDB, ExtractTB, Selection, ExtractSelection } from "@src/model/Builder";
 
 export type AnyModelConstructor = abstract new (...args: any[]) => Model<any, any>;
@@ -211,20 +211,36 @@ export abstract class Model<DB, TB extends keyof DB & string> {
 
   static where<T extends AnyModelConstructor>(
     this: T,
-    column: keyof InstanceType<T>["attributes"] & string,
+    expression:
+      | Expression<any>
+      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
+  ): Builder<InstanceType<T>>;
+
+  static where<T extends AnyModelConstructor>(
+    this: T,
+    column:
+      | (keyof InstanceType<T>["attributes"] & string)
+      | Expression<any>
+      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
     operator: string,
     value: any,
   ): Builder<InstanceType<T>>;
 
   static where<T extends AnyModelConstructor>(
     this: T,
-    column: keyof InstanceType<T>["attributes"] & string,
+    column:
+      | (keyof InstanceType<T>["attributes"] & string)
+      | Expression<any>
+      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
     value: any[],
   ): Builder<InstanceType<T>>;
 
   static where<T extends AnyModelConstructor>(
     this: T,
-    column: keyof InstanceType<T>["attributes"] & string,
+    column:
+      | (keyof InstanceType<T>["attributes"] & string)
+      | Expression<any>
+      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
     value: any,
   ): Builder<InstanceType<T>>;
 
@@ -234,15 +250,24 @@ export abstract class Model<DB, TB extends keyof DB & string> {
 
   static whereIn<T extends AnyModelConstructor>(
     this: T,
-    column: keyof InstanceType<T>["attributes"] & string,
-    values: any[],
+    column:
+      | (keyof InstanceType<T>["attributes"] & string)
+      | Expression<any>
+      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
+    values:
+      | any[]
+      | Expression<any>
+      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
   ): Builder<InstanceType<T>> {
     return (this as any).query().whereIn(column, values);
   }
 
   static whereNotNull<T extends AnyModelConstructor>(
     this: T,
-    column: keyof InstanceType<T>["attributes"] & string,
+    column:
+      | (keyof InstanceType<T>["attributes"] & string)
+      | Expression<any>
+      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
   ): Builder<InstanceType<T>> {
     return (this as any).query().whereNotNull(column);
   }
@@ -257,7 +282,10 @@ export abstract class Model<DB, TB extends keyof DB & string> {
 
   static orderBy<T extends AnyModelConstructor>(
     this: T,
-    column: keyof InstanceType<T>["attributes"] & string,
+    column:
+      | (keyof InstanceType<T>["attributes"] & string)
+      | Expression<any>
+      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
     direction: "asc" | "desc" = "asc",
   ): Builder<InstanceType<T>> {
     return (this as any).query().orderBy(column, direction);

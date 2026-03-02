@@ -221,7 +221,7 @@ describe("query", () => {
       eb.fn("upper", ["name"]).as("upper_name_cb"),
       eb.val("constant").as("constant_cb"),
     ])
-      .where("name", "=", "Zuko")
+      .where("name", "Zuko")
       .executeTakeFirst();
 
     expectToBeDefined(result);
@@ -234,6 +234,16 @@ describe("query", () => {
     expect(result.attributes.type).toBeUndefined();
     expect(result.attributes.upper_name_cb).toBe("ZUKO");
     expect(result.upper_name_cb).toBe("ZUKO");
+  });
+
+  it("should support where with expressions", async () => {
+    const result = await Pet.where((eb) => eb.fn("upper", ["name"]), "=", "ZUKO").executeTakeFirst();
+
+    expectToBeDefined(result);
+    // expect(result.counter).toBe(0);
+    expect(result.type).toBe("bird");
+    expect(result.attributes.name).toBe("Zuko");
+    expect(result.name).toBe("Zuko");
   });
 
   it("should find a model using a select clause", async () => {
@@ -278,7 +288,7 @@ describe("query", () => {
     }
   });
 
-  it("should support scalar subqueries in where clauses", async () => {
+  it("should support subqueries in where clauses", async () => {
     const davidIdSubquery = db.selectFrom("people").select("id").where("name", "=", "David").limit(1);
 
     const pets = await Pet.where("person_id", "=", davidIdSubquery).orderBy("id", "asc").get();
@@ -304,6 +314,30 @@ describe("query", () => {
     expect(people[1].attributes.name).toBe("Kate");
   });
 
+  it("should support subqueries in whereIn clause", async () => {
+    const activeUsersSubquery = db.selectFrom("people").select("id").where("favorite_color", "=", "blue");
+
+    const people = await Person.whereIn("id", activeUsersSubquery).get();
+    expect(people).toHaveLength(1);
+    expect(people[0].attributes.name).toBe("David");
+  });
+
+  it("should support subqueries in whereIn clause", async () => {
+    const activeUsersSubquery = db.selectFrom("people").select("id").where("favorite_color", "=", "blue");
+
+    const people = await Person.whereIn("id", activeUsersSubquery).get();
+    expect(people).toHaveLength(1);
+    expect(people[0].attributes.name).toBe("David");
+  });
+
+  it("should support subqueries in whereIn clause with custom Builder support", async () => {
+    const activeUsersSubquery = db.selectFrom("people").select("id").where("favorite_color", "=", "blue");
+
+    const people = await Person.whereIn("id", activeUsersSubquery as any).get();
+    expect(people).toHaveLength(1);
+    expect(people[0].attributes.name).toBe("David");
+  });
+
   it("should find models using whereNotNull", async () => {
     const peopleWithPhone = await Person.whereNotNull("phone").get();
 
@@ -312,6 +346,14 @@ describe("query", () => {
     expect(peopleWithPhone.some((p) => p.attributes.name === "Jordan")).toBe(false);
     // verify David is in the list
     expect(peopleWithPhone.some((p) => p.attributes.name === "David")).toBe(true);
+  });
+
+  it("should support expressions in whereIn and orderBy", async () => {
+    const people = await Person.whereIn((eb) => eb.fn("lower", ["name"]), ["david", "kate"])
+      .orderBy((eb) => eb.fn("lower", ["name"]), "asc")
+      .get();
+    expect(people).toHaveLength(2);
+    expect(people.map((p) => p.attributes.name)).toEqual(["David", "Kate"]);
   });
 });
 

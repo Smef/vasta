@@ -24,10 +24,11 @@ export type SelectedModel<M extends Model<any, any>, S extends keyof M["attribut
 
 // Define the shape of our constraints
 type Constraint =
-  | { type: "where"; column: string; operator: string; value: any }
-  | { type: "whereIn"; column: string; values: any[] }
-  | { type: "whereNull"; column: string }
-  | { type: "whereNotNull"; column: string };
+  | { type: "where"; column: any; operator: string; value: any }
+  | { type: "whereIn"; column: any; values: any[] | Expression<any> | ((eb: any) => Expression<any>) }
+  | { type: "whereNull"; column: any }
+  | { type: "whereNotNull"; column: any }
+  | { type: "whereExpression"; expression: any };
 
 export type ExtractDB<M> = M extends Model<infer D, any> ? D : never;
 export type ExtractTB<M> = M extends Model<any, infer T> ? T : never;
@@ -50,34 +51,78 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
   protected eagerLoads: string[] = [];
   protected limitValue?: number;
   protected offsetValue?: number;
-  protected orderings: { column: string; direction: "asc" | "desc" }[] = [];
+  protected orderings: { column: any; direction: "asc" | "desc" }[] = [];
 
   constructor(protected modelConstructor: AnyModelConstructor) {}
-  where(column: keyof M["attributes"] & string, operator: string, value: any): this;
-  where(column: keyof M["attributes"] & string, value: any[]): this;
-  where(column: keyof M["attributes"] & string, value: any): this;
-  where(column: string, opOrVal: any, value?: any): this {
+  where(expression: Expression<any> | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>)): this;
+  where(
+    column:
+      | (keyof M["attributes"] & string)
+      | Expression<any>
+      | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
+    operator: string,
+    value: any,
+  ): this;
+  where(
+    column:
+      | (keyof M["attributes"] & string)
+      | Expression<any>
+      | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
+    value: any[],
+  ): this;
+  where(
+    column:
+      | (keyof M["attributes"] & string)
+      | Expression<any>
+      | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
+    value: any,
+  ): this;
+  where(columnOrExpression: string | Expression<any> | Function, opOrVal?: any, value?: any): this {
     if (value !== undefined) {
-      this.constraints.push({ type: "where", column, operator: opOrVal, value });
+      this.constraints.push({ type: "where", column: columnOrExpression, operator: opOrVal, value });
     } else if (Array.isArray(opOrVal)) {
-      this.constraints.push({ type: "whereIn", column, values: opOrVal });
+      this.constraints.push({ type: "whereIn", column: columnOrExpression, values: opOrVal });
+    } else if (opOrVal !== undefined) {
+      this.constraints.push({ type: "where", column: columnOrExpression, operator: "=", value: opOrVal });
+    } else if (
+      typeof columnOrExpression === "function" ||
+      (columnOrExpression !== null && typeof columnOrExpression === "object" && "toOperationNode" in columnOrExpression)
+    ) {
+      this.constraints.push({ type: "whereExpression", expression: columnOrExpression });
     } else {
-      this.constraints.push({ type: "where", column, operator: "=", value: opOrVal });
+      throw new Error("Invalid where arguments");
     }
     return this;
   }
 
-  orderBy(column: keyof M["attributes"] & string, direction: "asc" | "desc" = "asc"): this {
+  orderBy(
+    column:
+      | (keyof M["attributes"] & string)
+      | Expression<any>
+      | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
+    direction: "asc" | "desc" = "asc",
+  ): this {
     this.orderings.push({ column, direction });
     return this;
   }
 
-  whereIn(column: keyof M["attributes"] & string, values: any[]): this {
-    this.constraints.push({ type: "whereIn", column, values });
+  whereIn(
+    column:
+      | (keyof M["attributes"] & string)
+      | Expression<any>
+      | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
+    values: any[] | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>) | Expression<any>,
+  ): this {
+    this.constraints.push({ type: "whereIn", column, values: values as any });
     return this;
   }
 
-  whereNotNull(column: keyof M["attributes"] & string): this {
+  whereNotNull(
+    column:
+      | (keyof M["attributes"] & string)
+      | Expression<any>
+      | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
+  ): this {
     this.constraints.push({ type: "whereNotNull", column });
     return this;
   }
@@ -193,6 +238,7 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
       else if (c.type === "whereIn") query = query.where(c.column, "in", c.values);
       else if (c.type === "whereNull") query = query.where(c.column, "is", null);
       else if (c.type === "whereNotNull") query = query.where(c.column, "is not", null);
+      else if (c.type === "whereExpression") query = query.where(c.expression as any);
     }
 
     for (const order of this.orderings) {
@@ -263,6 +309,7 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
       else if (c.type === "whereIn") query = query.where(c.column, "in", c.values);
       else if (c.type === "whereNull") query = query.where(c.column, "is", null);
       else if (c.type === "whereNotNull") query = query.where(c.column, "is not", null);
+      else if (c.type === "whereExpression") query = query.where(c.expression as any);
     }
 
     const result = await query.executeTakeFirst();
@@ -281,6 +328,7 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
       else if (c.type === "whereIn") query = query.where(c.column, "in", c.values);
       else if (c.type === "whereNull") query = query.where(c.column, "is", null);
       else if (c.type === "whereNotNull") query = query.where(c.column, "is not", null);
+      else if (c.type === "whereExpression") query = query.where(c.expression as any);
     }
 
     const result = await query.executeTakeFirst();
@@ -299,6 +347,7 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
       else if (c.type === "whereIn") query = query.where(c.column, "in", c.values);
       else if (c.type === "whereNull") query = query.where(c.column, "is", null);
       else if (c.type === "whereNotNull") query = query.where(c.column, "is not", null);
+      else if (c.type === "whereExpression") query = query.where(c.expression as any);
     }
 
     const result = await query.executeTakeFirst();
@@ -326,6 +375,7 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
       else if (c.type === "whereIn") countQuery = countQuery.where(c.column, "in", c.values);
       else if (c.type === "whereNull") countQuery = countQuery.where(c.column, "is", null);
       else if (c.type === "whereNotNull") countQuery = countQuery.where(c.column, "is not", null);
+      else if (c.type === "whereExpression") countQuery = countQuery.where(c.expression as any);
     }
 
     const countResult = await countQuery.executeTakeFirst();
