@@ -1,2 +1,2 @@
-# ignore md for now, since it doesn't work well for mdx
-/docs/**/*.md
+# ignore index.md since it's using MDC and prettier messes that up
+/docs/content/index.md

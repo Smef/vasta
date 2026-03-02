@@ -224,10 +224,22 @@ export abstract class Model<DB, TB extends keyof DB & string> {
       | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
   ): Builder<InstanceType<T>>;
 
+  static where<T extends AnyModelConstructor, Column extends keyof InstanceType<T>["attributes"] & string>(
+    this: T,
+    column: Column,
+    operator: string,
+    value: InstanceType<T>["attributes"][Column] | null | Expression<any>,
+  ): Builder<InstanceType<T>>;
+
+  static where<T extends AnyModelConstructor, Column extends keyof InstanceType<T>["attributes"] & string>(
+    this: T,
+    column: Column,
+    value: InstanceType<T>["attributes"][Column] | InstanceType<T>["attributes"][Column][] | null | Expression<any>,
+  ): Builder<InstanceType<T>>;
+
   static where<T extends AnyModelConstructor>(
     this: T,
     column:
-      | (keyof InstanceType<T>["attributes"] & string)
       | Expression<any>
       | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
     operator: string,
@@ -237,37 +249,37 @@ export abstract class Model<DB, TB extends keyof DB & string> {
   static where<T extends AnyModelConstructor>(
     this: T,
     column:
-      | (keyof InstanceType<T>["attributes"] & string)
       | Expression<any>
       | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
-    value: any[],
-  ): Builder<InstanceType<T>>;
-
-  static where<T extends AnyModelConstructor>(
-    this: T,
-    column:
-      | (keyof InstanceType<T>["attributes"] & string)
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
-    value: any,
+    value: any[] | any,
   ): Builder<InstanceType<T>>;
 
   static where<T extends AnyModelConstructor>(this: T, ...args: any[]): Builder<InstanceType<T>> {
     return (this as any).query().where(...args);
   }
 
+  static whereIn<T extends AnyModelConstructor, Column extends keyof InstanceType<T>["attributes"] & string>(
+    this: T,
+    column: Column,
+    values:
+      | InstanceType<T>["attributes"][Column][]
+      | Expression<any>
+      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
+  ): Builder<InstanceType<T>>;
+
   static whereIn<T extends AnyModelConstructor>(
     this: T,
     column:
-      | (keyof InstanceType<T>["attributes"] & string)
       | Expression<any>
       | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
     values:
       | any[]
       | Expression<any>
       | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
-  ): Builder<InstanceType<T>> {
-    return (this as any).query().whereIn(column, values);
+  ): Builder<InstanceType<T>>;
+
+  static whereIn<T extends AnyModelConstructor>(this: T, ...args: any[]): Builder<InstanceType<T>> {
+    return (this as any).query().whereIn(...args);
   }
 
   static whereNotNull<T extends AnyModelConstructor>(
@@ -377,7 +389,13 @@ export abstract class Model<DB, TB extends keyof DB & string> {
     return (this as any).query().select(columns);
   }
 
-  static with<T extends AnyModelConstructor>(this: T, ...relations: string[]): Builder<InstanceType<T>> {
+  static with<T extends AnyModelConstructor>(
+    this: T,
+    ...relations: (
+      | import("./Builder").RelationKeys<InstanceType<T>>
+      | import("./Builder").WithConstraints<InstanceType<T>>
+    )[]
+  ): Builder<InstanceType<T>> {
     return (this as any).query().with(...relations);
   }
 
@@ -408,7 +426,7 @@ export abstract class Model<DB, TB extends keyof DB & string> {
       },
     );
 
-    builder.where(ownerKey, "=", fkValue);
+    builder.where(ownerKey as any, "=", fkValue as any);
     return builder._markClean();
   }
 
@@ -440,7 +458,7 @@ export abstract class Model<DB, TB extends keyof DB & string> {
       },
     );
 
-    builder.where(foreignKey, "=", localValue);
+    builder.where(foreignKey as any, "=", localValue as any);
     return builder._markClean();
   }
 
@@ -484,7 +502,7 @@ export abstract class Model<DB, TB extends keyof DB & string> {
     // Join the pivot table and filter by the local value
     builder
       .innerJoin(pivotTable, `${pivotTable}.${relatedPivotKey}`, `${table}.${relatedK}`)
-      .where(`${pivotTable}.${foreignPivotKey}`, "=", localValue)
+      .where(`${pivotTable}.${foreignPivotKey}` as any, "=", localValue as any)
       .selectAll(table)
       .select([`${pivotTable}.${foreignPivotKey} as _pivot_foreign_key` as any]);
 

@@ -50,6 +50,14 @@ export type Selection<M extends Model<any, any>> =
 
 export type ExtractSelection<T> = T extends string ? T : T extends AliasedExpression<any, infer A> ? A : never;
 
+export type RelationKeys<M> = {
+  [K in keyof M]-?: M[K] extends RelationBuilder<any, any> ? K : never;
+}[keyof M & string];
+
+export type WithConstraints<M> = {
+  [K in RelationKeys<M>]?: M[K] extends RelationBuilder<infer RM, any> ? (query: Builder<RM>) => void : never;
+};
+
 export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] | string = never> {
   protected constraints: Constraint[] = [];
   protected joinConstraints: JoinConstraint[] = [];
@@ -60,34 +68,30 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
     | ((eb: any) => (string | Expression<unknown> | AliasedExpression<any, any>)[])
   )[] = []; // Track our columns
   protected selectAllTables: string[] = [];
-  protected eagerLoads: string[] = [];
+  protected eagerLoads: { relation: string; constraint?: (query: Builder<any>) => void }[] = [];
   protected limitValue?: number;
   protected offsetValue?: number;
   protected orderings: { column: any; direction: "asc" | "desc" }[] = [];
 
   constructor(protected modelConstructor: AnyModelConstructor) {}
   where(expression: Expression<any> | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>)): this;
+  where<Column extends keyof M["attributes"] & string>(
+    column: Column,
+    operator: string,
+    value: M["attributes"][Column] | null | Expression<any>,
+  ): this;
+  where<Column extends keyof M["attributes"] & string>(
+    column: Column,
+    value: M["attributes"][Column] | M["attributes"][Column][] | null | Expression<any>,
+  ): this;
   where(
-    column:
-      | (keyof M["attributes"] & string)
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
+    column: Expression<any> | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
     operator: string,
     value: any,
   ): this;
   where(
-    column:
-      | (keyof M["attributes"] & string)
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
-    value: any[],
-  ): this;
-  where(
-    column:
-      | (keyof M["attributes"] & string)
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
-    value: any,
+    column: Expression<any> | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
+    value: any[] | any,
   ): this;
   where(columnOrExpression: string | Expression<any> | Function, opOrVal?: any, value?: any): this {
     if (value !== undefined) {
@@ -118,13 +122,18 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
     return this;
   }
 
-  whereIn(
-    column:
-      | (keyof M["attributes"] & string)
+  whereIn<Column extends keyof M["attributes"] & string>(
+    column: Column,
+    values:
+      | M["attributes"][Column][]
       | Expression<any>
       | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
+  ): this;
+  whereIn(
+    column: Expression<any> | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
     values: any[] | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>) | Expression<any>,
-  ): this {
+  ): this;
+  whereIn(column: string | Expression<any> | Function, values: any): this {
     this.constraints.push({ type: "whereIn", column, values: values as any });
     return this;
   }
@@ -175,8 +184,16 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
     return this;
   }
 
-  with(...relations: string[]): this {
-    this.eagerLoads.push(...relations);
+  with(...relations: (RelationKeys<M> | WithConstraints<M>)[]): this {
+    for (const relation of relations) {
+      if (typeof relation === "string") {
+        this.eagerLoads.push({ relation });
+      } else {
+        for (const [key, constraint] of Object.entries(relation as Record<string, any>)) {
+          this.eagerLoads.push({ relation: key, constraint });
+        }
+      }
+    }
     return this;
   }
 
@@ -185,7 +202,7 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
       return;
     }
 
-    for (const relation of this.eagerLoads) {
+    for (const { relation, constraint } of this.eagerLoads) {
       const relationBuilder = models[0][relation] as RelationBuilder<any, any>;
 
       if (!relationBuilder || !relationBuilder.relationMetadata) {
@@ -206,11 +223,12 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
         continue;
       }
 
-      let relatedRecords: any[];
+      let query: Builder<any>;
+
       if (meta.type === "belongsToMany") {
         const dummy = new (meta.relatedClass as any)({});
         const table = dummy.table;
-        relatedRecords = await (meta.relatedClass as any)
+        query = (meta.relatedClass as any)
           .query()
           .innerJoin(
             meta.pivotTable!,
@@ -219,11 +237,16 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
           )
           .whereIn(`${meta.pivotTable!}.${meta.foreignPivotKey!}`, keys)
           .selectAll(table)
-          .select([`${meta.pivotTable!}.${meta.foreignPivotKey!} as _pivot_foreign_key`])
-          .get();
+          .select([`${meta.pivotTable!}.${meta.foreignPivotKey!} as _pivot_foreign_key`]);
       } else {
-        relatedRecords = await (meta.relatedClass as any).query().whereIn(meta.matchRelatedKey, keys).get();
+        query = (meta.relatedClass as any).query().whereIn(meta.matchRelatedKey, keys);
       }
+
+      if (constraint) {
+        constraint(query);
+      }
+
+      const relatedRecords = await query.get();
 
       for (const model of models) {
         if (!model.loadedRelations) {

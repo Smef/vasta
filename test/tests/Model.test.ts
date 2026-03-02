@@ -77,8 +77,22 @@ describe("constructor", () => {
     expect(dummy.name).toBe("Smaug");
   });
 
+  it("should have type errors when providing invalid attribute types", async () => {
+    await Person.where("name", "David").get();
+    // @ts-expect-error - name should be a string
+    await Person.where("name", 123).get();
+
+    const pets = await Pet.where("type", "=", "cat").get();
+    // @ts-expect-error - type should not be a number
+    const invalidPets = await Pet.where("type", "=", 123).get();
+
+    const inPets = await Pet.whereIn("type", ["cat", "dog"]).get();
+    // @ts-expect-error - type should not be an array of numbers
+    const invalidInPets = await Pet.whereIn("type", [123]).get();
+  });
+
   it("should have a type error if a required attribute is not provided even after applying defaults", async () => {
-    // @ts-expect-error
+    // @ts-expect-error - type is required
     const pet = new Pet({
       name: "Defaulted",
     });
@@ -793,6 +807,40 @@ describe("relationships", () => {
     expect(bird).toBeInstanceOf(Pet);
   });
 
+  it("should throw an error and have type errors for invalid eager load constraints", async () => {
+    await expect(
+      Person.with({
+        pets: (query) => {
+          // @ts-expect-error type 'dog' is ok for value but 'wrong_field' doesn't exist
+          query.where("wrong_field", "dog");
+        },
+      }).findOrFail(3),
+    ).rejects.toThrowError(`column "wrong_field" does not exist`);
+
+    const person = await Person.with({
+      pets: (query) => {
+        // @ts-expect-error type 'type' expects string but got number
+        query.where("type", 123);
+      },
+    }).findOrFail(3);
+
+    // Postgres doesn't strictly fail the query for string = integer comparison here, it just returns empty
+    expect(person.loadedRelations.pets).toHaveLength(0);
+  });
+
+  it("should eager load with constraints", async () => {
+    const person = await Person.with({
+      pets: (query) => {
+        // Should compile normally
+        query.where("type", "cat");
+      },
+    }).findOrFail(3);
+
+    expectToBeDefined(person.loadedRelations.pets);
+    expect(person.loadedRelations.pets).toHaveLength(1);
+    expect(person.loadedRelations.pets[0].attributes.type).toBe("cat");
+  });
+
   it("should eager load belongsTo relations with with()", async () => {
     const pets = await Pet.with("owner").orderBy("id", "asc").limit(2).get();
 
@@ -866,6 +914,7 @@ describe("relationships", () => {
   });
 
   it("should throw when eager loading an invalid relation", async () => {
+    // @ts-expect-error test invalid relation eager loading
     await expect(Person.with("invalidRelation").get()).rejects.toThrow(
       "Relation 'invalidRelation' is not properly defined or does not return a RelationBuilder.",
     );
