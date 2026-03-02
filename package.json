@@ -50,7 +50,7 @@
   "types": "dist/esm/index.d.ts",
   "devDependencies": {
     "@eslint/js": "^9.39.3",
-    "@types/node": "^25.3.2",
+    "@types/node": "^25.3.3",
     "@types/pg": "^8.18.0",
     "eslint": "^9.39.3",
     "eslint-config-prettier": "^9.1.2",
