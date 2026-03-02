@@ -1,6 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { defineModel } from "vasta";
-import { sql } from "kysely";
+import { describe, it, expect } from "vitest";
+import { defineModel } from "vasta-orm";
 
 import Pet from "@/database/models/Pet";
 import Person from "@/database/models/Person";
@@ -55,6 +54,25 @@ describe("constructor", () => {
 
     // saving should work without providing counter
     expect(pet.save()).resolves.not.toThrow();
+  });
+
+  it("should evaluate sync function defaults immediately upon instantiation", async () => {
+    class Dummy extends defineModel({
+      db,
+      table: "pets",
+      attributes: {
+        type: "dragon",
+        name: () => "Smaug",
+        counter: () => 1000,
+      },
+    }) {}
+
+    const dummy = new Dummy({});
+
+    // Sync functions are evaluated and assigned inside constructor
+    expect(dummy.type).toBe("dragon");
+    expect(dummy.counter).toBe(1000);
+    expect(dummy.name).toBe("Smaug");
   });
 
   it("should have a type error if a required attribute is not provided even after applying defaults", async () => {

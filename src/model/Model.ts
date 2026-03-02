@@ -31,7 +31,7 @@ export abstract class Model<DB, TB extends keyof DB & string> {
   hidden: (keyof DB[TB] & string)[] = [];
   events: ModelLifecycleEvents<Model<DB, TB>> = {};
 
-  get defaultAttributes(): Partial<Insertable<DB[TB]>> {
+  get defaultAttributes(): DefaultAttributes<Insertable<DB[TB]>> {
     return {};
   }
 
@@ -42,7 +42,14 @@ export abstract class Model<DB, TB extends keyof DB & string> {
 
   constructor(attributes: Partial<Insertable<DB[TB]>> = {}, isNew = true) {
     if (isNew) {
-      this.attributes = { ...this.defaultAttributes, ...attributes } as unknown as Selectable<DB[TB]>;
+      const defaults = this.defaultAttributes;
+      const evaluatedDefaults: Record<string, any> = {};
+      
+      for (const [key, value] of Object.entries(defaults)) {
+        evaluatedDefaults[key] = typeof value === "function" ? (value as any)() : value;
+      }
+
+      this.attributes = { ...evaluatedDefaults, ...attributes } as unknown as Selectable<DB[TB]>;
     } else {
       this.attributes = attributes as unknown as Selectable<DB[TB]>;
     }
@@ -442,20 +449,24 @@ export type Simplify<T> = { [K in keyof T]: T[K] } & {};
 
 export type ModelConstructorArgs<T, DA> = Simplify<Omit<T, keyof DA> & Partial<Pick<T, keyof DA & keyof T>>>;
 
+export type DefaultAttributes<T> = {
+  [K in keyof T]?: T[K] | (() => T[K]);
+};
+
 export interface ModelConfig<DB, TB extends keyof DB & string> {
   db: Kysely<DB>;
   table: TB;
   // Make primaryKey optional, it will default to "id" under the hood
   primaryKey?: keyof DB[TB] & string;
   hidden?: (keyof DB[TB] & string)[];
-  attributes?: Partial<Insertable<DB[TB]>>;
+  attributes?: DefaultAttributes<Insertable<DB[TB]>>;
   events?: ModelLifecycleEvents<Model<DB, TB>>;
 }
 
 export function defineModel<
   DB,
   TB extends keyof DB & string,
-  DA extends Partial<Insertable<DB[TB]>> = Record<never, never>,
+  DA extends DefaultAttributes<Insertable<DB[TB]>> = Record<never, never>,
 >(config: ModelConfig<DB, TB> & { attributes?: DA }) {
   abstract class BaseModel extends Model<DB, TB> {
     db = config.db;
@@ -465,8 +476,8 @@ export function defineModel<
     hidden = config.hidden ?? [];
     events = (config.events ?? {}) as ModelLifecycleEvents<Model<DB, TB>>;
 
-    get defaultAttributes(): Partial<Insertable<DB[TB]>> {
-      return (config.attributes ?? {}) as Partial<Insertable<DB[TB]>>;
+    get defaultAttributes(): DefaultAttributes<Insertable<DB[TB]>> {
+      return (config.attributes ?? {}) as DefaultAttributes<Insertable<DB[TB]>>;
     }
 
     constructor(attributes: ModelConstructorArgs<Insertable<DB[TB]>, Exclude<DA, undefined>>, isNew = true) {

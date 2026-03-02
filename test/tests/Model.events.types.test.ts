@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import db from "@/database/db";
-import { defineModel } from "vasta";
+import { defineModel } from "vasta-orm";
 
 describe("lifecycle event typing", () => {
   it("should type lifecycle event handlers from defineModel config", () => {

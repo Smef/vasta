@@ -1,4 +1,4 @@
-import { defineModel } from "vasta";
+import { defineModel } from "vasta-orm";
 import Person from "@/database/models/Person";
 import db from "@/database/db";
 
