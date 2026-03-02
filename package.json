@@ -1,12 +1,26 @@
 {
   "name": "vasta",
   "version": "0.0.0",
-  "description": "",
-  "main": "dist/cjs/index.js",
-  "module": "dist/esm/index.js",
-  "types": "dist/esm/index.d.ts",
+  "description": "Active record ORM built on top of Kysely",
+  "type": "module",
+  "author": "David Nahodyl <david.nahodyl@gmail.com>",
+  "license": "MIT",
   "files": [
     "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Smef/vasta"
+  },
+  "bugs": {
+    "url": "https://github.com/Smef/vasta/issues"
+  },
+  "homepage": "https://github.com/Smef/vasta",
+  "keywords": [
+    "orm",
+    "kysely",
+    "typescript",
+    "active record"
   ],
   "exports": {
     ".": {
@@ -31,10 +45,9 @@
     "db:migrate": "kysely migrate:latest",
     "db:seed": "kysely seed:run"
   },
-  "type": "module",
-  "keywords": [],
-  "author": "David Nahodyl <david.nahodyl@gmail.com>",
-  "license": "MIT",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/esm/index.d.ts",
   "devDependencies": {
     "@eslint/js": "^9.39.3",
     "@types/node": "^25.3.2",
