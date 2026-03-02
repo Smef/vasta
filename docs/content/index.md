@@ -1,6 +1,6 @@
 ---
 seo:
-  title: Vasta - Type-safe ORM model layer built on top of Kysely
+  title: Vasta - Type-safe, active record style ORM model layer for Node.js
   description: Define your models and relationships in a type-safe way with Vasta.
 ---
 
