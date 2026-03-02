@@ -252,6 +252,24 @@ describe("query", () => {
     expect(pets).toHaveLength(8);
     expect(pets.every((pet) => pet.attributes.person_id === 1 || pet.attributes.person_id === 2)).toBe(true);
   });
+
+  it("should find models using whereIn", async () => {
+    const people = await Person.whereIn("favorite_color", ["blue", "green"]).orderBy("id", "asc").get();
+
+    expect(people).toHaveLength(2);
+    expect(people[0].attributes.name).toBe("David");
+    expect(people[1].attributes.name).toBe("Kate");
+  });
+
+  it("should find models using whereNotNull", async () => {
+    const peopleWithPhone = await Person.whereNotNull("phone").get();
+
+    expect(peopleWithPhone.length).toBeGreaterThan(0);
+    // verify Jordan is not in the list (since Jordan doesn't have a phone)
+    expect(peopleWithPhone.some((p) => p.attributes.name === "Jordan")).toBe(false);
+    // verify David is in the list
+    expect(peopleWithPhone.some((p) => p.attributes.name === "David")).toBe(true);
+  });
 });
 
 describe("limit and offset", () => {
