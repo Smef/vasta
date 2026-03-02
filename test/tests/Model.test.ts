@@ -212,7 +212,7 @@ describe("query", () => {
   it("should default to equals when where is called with field and value", async () => {
     const result = await Person.where("name", "David").first();
 
-    expect(result).toBeDefined();
+    expectToBeDefined(result);
     expect(result?.attributes.name).toBe("David");
   });
 
@@ -269,8 +269,7 @@ describe("query", () => {
   it("should find a model using a select clause", async () => {
     // Tests array input
     const result = await Pet.select(["name"]).where("name", "=", "Zuko").executeTakeFirst();
-    expect(result).toBeDefined();
-    if (!result) return;
+    expectToBeDefined(result);
     expect(result.attributes.name).toBe("Zuko");
     // expect a type error on id
     // @ts-expect-error
@@ -434,7 +433,7 @@ describe("orderBy", () => {
 describe("first and firstOrFail", () => {
   it("should return the first result", async () => {
     const pet = await Pet.orderBy("id", "asc").first();
-    expect(pet).toBeDefined();
+    expectToBeDefined(pet);
     expect(pet?.attributes.id).toBe(1);
   });
 
@@ -445,7 +444,7 @@ describe("first and firstOrFail", () => {
 
   it("should return the first result or fail", async () => {
     const pet = await Pet.orderBy("id", "asc").firstOrFail();
-    expect(pet).toBeDefined();
+    expectToBeDefined(pet);
     expect(pet.attributes.id).toBe(1);
   });
 
@@ -778,8 +777,8 @@ describe("relationships", () => {
     const people = await Person.with("pets").orderBy("id", "asc").limit(2).get();
 
     expect(people).toHaveLength(2);
-    expect(people[0].loadedRelations.pets).toBeDefined();
-    expect(people[1].loadedRelations.pets).toBeDefined();
+    expectToBeDefined(people[0].loadedRelations.pets);
+    expectToBeDefined(people[1].loadedRelations.pets);
     expect(getQueryCount()).toBe(2);
 
     const firstPersonPets = await people[0].pets;
@@ -798,7 +797,7 @@ describe("relationships", () => {
     const pets = await Pet.with("owner").orderBy("id", "asc").limit(2).get();
 
     expect(pets).toHaveLength(2);
-    expect(pets[0].loadedRelations.owner).toBeDefined();
+    expectToBeDefined(pets[0].loadedRelations.owner);
 
     const owner = await pets[0].owner;
     expect(owner).toBe(pets[0].loadedRelations.owner);
@@ -818,8 +817,8 @@ describe("relationships", () => {
     const pets = await Pet.with("vets").orderBy("id", "asc").limit(2).get();
 
     expect(pets).toHaveLength(2);
-    expect(pets[0].loadedRelations.vets).toBeDefined();
-    expect(pets[1].loadedRelations.vets).toBeDefined();
+    expectToBeDefined(pets[0].loadedRelations.vets);
+    expectToBeDefined(pets[1].loadedRelations.vets);
     expect(getQueryCount()).toBe(2);
 
     const firstPetVets = await pets[0].vets;
@@ -840,8 +839,8 @@ describe("relationships", () => {
     const pets = await Pet.with("vets", "owner").orderBy("id", "asc").limit(2).get();
 
     expect(pets).toHaveLength(2);
-    expect(pets[0].loadedRelations.vets).toBeDefined();
-    expect(pets[0].loadedRelations.owner).toBeDefined();
+    expectToBeDefined(pets[0].loadedRelations.vets);
+    expectToBeDefined(pets[0].loadedRelations.owner);
     expect(getQueryCount()).toBe(3);
 
     const firstPetVets = await pets[0].vets;
@@ -852,8 +851,8 @@ describe("relationships", () => {
     expect(firstPetOwner).toBe(pets[0].loadedRelations.owner);
     expect(firstPetOwner?.attributes.id).toBe(pets[0].attributes.person_id);
 
-    expect(pets[1].loadedRelations.vets).toBeDefined();
-    expect(pets[1].loadedRelations.owner).toBeDefined();
+    expectToBeDefined(pets[1].loadedRelations.vets);
+    expectToBeDefined(pets[1].loadedRelations.owner);
 
     const secondPetVets = await pets[1].vets;
     expect(secondPetVets).toBe(pets[1].loadedRelations.vets);
@@ -878,7 +877,7 @@ describe("serialization", () => {
     const pet = await Pet.findOrFail(1);
     const json = pet.toJSON();
 
-    expect(json).toBeDefined();
+    expectToBeDefined(json);
     expect(json.id).toBe(1);
     expect(json.name).toBe("Zuko");
   });
@@ -887,20 +886,20 @@ describe("serialization", () => {
     const person = await Person.findOrFail(1);
     const json = person.toJSON();
 
-    expect(json).toBeDefined();
+    expectToBeDefined(json);
     expect(json.id).toBe(1);
     expect(json.name).toBe("David");
     expect(json.secret).toBeUndefined();
-    expect(person.attributes.secret).toBeDefined();
+    expectToBeDefined(person.attributes.secret);
   });
 
   it("should serialize loaded relations", async () => {
     const person = await Person.with("pets").findOrFail(1);
     const json = person.toJSON();
 
-    expect(json.pets).toBeDefined();
+    expectToBeDefined(json.pets);
     expect(json.pets).toHaveLength(4);
-    expect(json.pets[0].name).toBeDefined();
+    expectToBeDefined(json.pets[0].name);
   });
 
   it("should be used by JSON.stringify", async () => {
