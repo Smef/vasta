@@ -15,7 +15,7 @@
   "bugs": {
     "url": "https://github.com/Smef/vasta/issues"
   },
-  "homepage": "https://github.com/Smef/vasta",
+  "homepage": "https://vastajs.com/",
   "keywords": [
     "orm",
     "kysely",
