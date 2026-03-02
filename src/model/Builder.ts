@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Kysely } from "kysely";
+import { Kysely, Expression, ExpressionBuilder, AliasedExpression } from "kysely";
 import { Model } from "@src/model/Model";
 export type AnyModelConstructor = abstract new (...args: any[]) => Model<any, any>;
 
@@ -11,12 +11,14 @@ export type RelationMetadata = {
   relationName: string;
 };
 
-export type SelectedModel<M extends Model<any, any>, S extends keyof M["attributes"] = never> = Omit<
+export type SelectedModel<M extends Model<any, any>, S extends keyof M["attributes"] | string = never> = Omit<
   M,
   "attributes"
 > & {
-  attributes: [S] extends [never] ? M["attributes"] : Pick<M["attributes"], S>;
-};
+  attributes: [S] extends [never]
+    ? M["attributes"]
+    : Pick<M["attributes"], S & keyof M["attributes"]> & Record<Exclude<S, keyof M["attributes"]>, any>;
+} & Record<Exclude<S, keyof M["attributes"]>, any>;
 
 // Define the shape of our constraints
 type Constraint =
@@ -25,9 +27,17 @@ type Constraint =
   | { type: "whereNull"; column: string }
   | { type: "whereNotNull"; column: string };
 
-export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] = never> {
+export type ExtractDB<M> = M extends Model<infer D, any> ? D : never;
+export type ExtractTB<M> = M extends Model<any, infer T> ? T : never;
+
+export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] | string = never> {
   protected constraints: Constraint[] = [];
-  protected selectedColumns: string[] = []; // Track our columns
+  protected selectedColumns: (
+    | string
+    | Expression<unknown>
+    | AliasedExpression<any, any>
+    | ((eb: any) => (string | Expression<unknown> | AliasedExpression<any, any>)[])
+  )[] = []; // Track our columns
   protected eagerLoads: string[] = [];
   protected limitValue?: number;
   protected offsetValue?: number;
@@ -76,9 +86,19 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
   /**
    * Specify which columns to fetch from the database.
    */
-  select<K extends keyof M["attributes"] & string>(...columns: K[]): Builder<M, S | K> {
-    // Combines existing selections with new ones
-    this.selectedColumns.push(...columns);
+  select<K extends (keyof M["attributes"] & string) | string>(
+    columns:
+      | (K | Expression<unknown> | AliasedExpression<any, any>)[]
+      | ((
+          eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>,
+        ) => (K | Expression<unknown> | AliasedExpression<any, any>)[]),
+  ): Builder<M, S | K> {
+    if (typeof columns === "function") {
+      this.selectedColumns.push(columns);
+    } else {
+      // Combines existing selections with new ones
+      this.selectedColumns.push(...columns);
+    }
     // We must cast here because we are technically changing the builder's type signature
     return this as unknown as Builder<M, S | K>;
   }
@@ -147,7 +167,17 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
 
     // Apply specific columns or fall back to selectAll()
     if (this.selectedColumns.length > 0) {
-      query = query.select(this.selectedColumns as any) as any;
+      // We need to re-map the selected columns to handle callbacks separately
+      const simpleColumns = this.selectedColumns.filter((c) => typeof c !== "function");
+      const callbacks = this.selectedColumns.filter((c) => typeof c === "function");
+
+      if (simpleColumns.length > 0) {
+        query = query.select(simpleColumns as any) as any;
+      }
+
+      for (const callback of callbacks) {
+        query = query.select(callback as any) as any;
+      }
     } else {
       query = query.selectAll() as any;
     }
@@ -188,7 +218,10 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
   }
 
   async executeTakeFirst(): Promise<SelectedModel<M, S> | undefined> {
-    const row = await this.compileQuery().executeTakeFirst();
+    const row = await this.compileQuery().executeTakeFirst() as any;
+    // console.log("ROW:", row);
+    // console.log("Selected Columns:", this.selectedColumns);
+
     if (!row) return undefined;
 
     const instance = new (this.modelConstructor as any)(row);

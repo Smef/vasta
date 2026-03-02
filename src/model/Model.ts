@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { Insertable, Kysely, Selectable } from "kysely";
-import { Builder, RelationBuilder } from "@src/model/Builder";
+import { Insertable, Kysely, Selectable, Expression, ExpressionBuilder, AliasedExpression } from "kysely";
+import { Builder, RelationBuilder, ExtractDB, ExtractTB } from "@src/model/Builder";
 
 export type AnyModelConstructor = abstract new (...args: any[]) => Model<any, any>;
 
@@ -329,11 +329,15 @@ export abstract class Model<DB, TB extends keyof DB & string> {
   /**
    * Static pass-through for select()
    */
-  static select<T extends AnyModelConstructor, K extends keyof InstanceType<T>["attributes"] & string>(
+  static select<T extends AnyModelConstructor, K extends (keyof InstanceType<T>["attributes"] & string) | string>(
     this: T,
-    ...columns: K[]
+    columns:
+      | (K | Expression<unknown> | AliasedExpression<any, any>)[]
+      | ((
+          eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>,
+        ) => (K | Expression<unknown> | AliasedExpression<any, any>)[]),
   ): Builder<InstanceType<T>, K> {
-    return (this as any).query().select(...columns);
+    return (this as any).query().select(columns);
   }
 
   static with<T extends AnyModelConstructor>(this: T, ...relations: string[]): Builder<InstanceType<T>> {

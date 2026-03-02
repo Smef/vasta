@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { defineModel } from "vasta";
+import { sql } from "kysely";
 
 import Pet from "@/database/models/Pet";
 import Person from "@/database/models/Person";
@@ -202,8 +203,36 @@ describe("query", () => {
     expect(result.map((person) => person.attributes.name)).toEqual(["David", "Kate"]);
   });
 
+  it("should select using expressions", async () => {
+    const result = await Pet.select((eb) => [eb.fn("upper", ["name"]).as("upper_name")])
+      .where("name", "=", "Zuko")
+      .executeTakeFirst();
+
+    expectToBeDefined(result);
+    const name = result.upper_name; // should have type string
+    if (!result) return;
+    expect(result.attributes.upper_name).toBe("ZUKO");
+    // expect(result.upper_name).toBe("ZUKO");
+  });
+
+  it("should select using expression builder callback", async () => {
+    const result = await Pet.select((eb) => [
+      "name",
+      eb.fn("upper", ["name"]).as("upper_name_cb"),
+      eb.val("constant").as("constant_cb"),
+    ])
+      .where("name", "=", "Zuko")
+      .executeTakeFirst();
+
+    expect(result).toBeDefined();
+    if (!result) return;
+    expect(result.attributes.upper_name_cb).toBe("Zuko");
+    expect(result.upper_name_cb).toBe("ZUKO");
+  });
+
   it("should find a model using a select clause", async () => {
-    const result = await Pet.select("name").where("name", "=", "Zuko").executeTakeFirst();
+    // Tests array input
+    const result = await Pet.select(["name"]).where("name", "=", "Zuko").executeTakeFirst();
     expect(result).toBeDefined();
     if (!result) return;
     expect(result.attributes.name).toBe("Zuko");
