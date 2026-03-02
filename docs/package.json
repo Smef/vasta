@@ -6,7 +6,7 @@
     "generate": "nuxt generate --extends docus"
   },
   "dependencies": {
-    "docus": "5.7.*",
+    "docus": "latest",
     "better-sqlite3": "^12.6.2",
     "nuxt": "^4.3.1"
   },
