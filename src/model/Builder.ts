@@ -357,8 +357,6 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
 
   async executeTakeFirst(): Promise<SelectedModel<M, S> | undefined> {
     const row = (await this.compileQuery().executeTakeFirst()) as any;
-    // console.log("ROW:", row);
-    // console.log("Selected Columns:", this.selectedColumns);
 
     if (!row) return undefined;
 
