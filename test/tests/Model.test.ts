@@ -112,17 +112,17 @@ describe("constructor", () => {
   });
 
   it("should have type errors when providing invalid attribute types", async () => {
-    await Person.where("name", "David").get();
+    void (await Person.where("name", "David").get());
     // @ts-expect-error - name should be a string
-    await Person.where("name", 123).get();
+    void (await Person.where("name", 123).get());
 
-    const pets = await Pet.where("type", "=", "cat").get();
+    void (await Pet.where("type", "=", "cat").get());
     // @ts-expect-error - type should not be a number
-    const invalidPets = await Pet.where("type", "=", 123).get();
+    void (await Pet.where("type", "=", 123).get());
 
-    const inPets = await Pet.whereIn("type", ["cat", "dog"]).get();
+    void (await Pet.whereIn("type", ["cat", "dog"]).get());
     // @ts-expect-error - type should not be an array of numbers
-    const invalidInPets = await Pet.whereIn("type", [123]).get();
+    void (await Pet.whereIn("type", [123]).get());
   });
 
   it("should have a type error if a required attribute is not provided even after applying defaults", async () => {

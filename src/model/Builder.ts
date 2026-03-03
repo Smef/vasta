@@ -76,23 +76,26 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
 
   constructor(protected modelConstructor: AnyModelConstructor) {}
   where(expression: Expression<any> | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>)): this;
-  where<Column extends keyof M["attributes"] & string>(
+  where<
+    Column extends
+      | (keyof M["attributes"] & string)
+      | Expression<any>
+      | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
+  >(
     column: Column,
     operator: string,
-    value: M["attributes"][Column] | null | Expression<any>,
+    value: Column extends keyof M["attributes"] & string ? M["attributes"][Column] | null | Expression<any> : any,
   ): this;
-  where<Column extends keyof M["attributes"] & string>(
+  where<
+    Column extends
+      | (keyof M["attributes"] & string)
+      | Expression<any>
+      | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
+  >(
     column: Column,
-    value: M["attributes"][Column] | M["attributes"][Column][] | null | Expression<any>,
-  ): this;
-  where(
-    column: Expression<any> | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
-    operator: string,
-    value: any,
-  ): this;
-  where(
-    column: Expression<any> | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
-    value: any[] | any,
+    value: Column extends keyof M["attributes"] & string
+      ? M["attributes"][Column] | M["attributes"][Column][] | null | Expression<any>
+      : any[] | any,
   ): this;
   where(columnOrExpression: string | Expression<any> | Function, opOrVal?: any, value?: any): this {
     if (value !== undefined) {

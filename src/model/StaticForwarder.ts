@@ -20,34 +20,33 @@ export abstract class StaticForwarder {
       | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
   ): Builder<InstanceType<T>>;
 
-  static where<T extends AnyModelConstructor, Column extends keyof InstanceType<T>["attributes"] & string>(
+  static where<
+    T extends AnyModelConstructor,
+    Column extends
+      | (keyof InstanceType<T>["attributes"] & string)
+      | Expression<any>
+      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
+  >(
     this: T,
     column: Column,
     operator: string,
-    value: InstanceType<T>["attributes"][Column] | null | Expression<any>,
+    value: Column extends keyof InstanceType<T>["attributes"] & string
+      ? InstanceType<T>["attributes"][Column] | null | Expression<any>
+      : any,
   ): Builder<InstanceType<T>>;
 
-  static where<T extends AnyModelConstructor, Column extends keyof InstanceType<T>["attributes"] & string>(
+  static where<
+    T extends AnyModelConstructor,
+    Column extends
+      | (keyof InstanceType<T>["attributes"] & string)
+      | Expression<any>
+      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
+  >(
     this: T,
     column: Column,
-    value: InstanceType<T>["attributes"][Column] | InstanceType<T>["attributes"][Column][] | null | Expression<any>,
-  ): Builder<InstanceType<T>>;
-
-  static where<T extends AnyModelConstructor>(
-    this: T,
-    column:
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
-    operator: string,
-    value: any,
-  ): Builder<InstanceType<T>>;
-
-  static where<T extends AnyModelConstructor>(
-    this: T,
-    column:
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
-    value: any[] | any,
+    value: Column extends keyof InstanceType<T>["attributes"] & string
+      ? InstanceType<T>["attributes"][Column] | InstanceType<T>["attributes"][Column][] | null | Expression<any>
+      : any[] | any,
   ): Builder<InstanceType<T>>;
 
   static where<T extends AnyModelConstructor>(this: T, ...args: any[]): Builder<InstanceType<T>> {
