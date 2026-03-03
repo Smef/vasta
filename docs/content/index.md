@@ -19,7 +19,8 @@ seo:
   :::
 
 #description
-<p>A <span class=" italic underline text-black dark:text-white italics">type-safe</span> active record model layer for <a href="https://kysely.dev/" target="_blank">Kysely</a> with syntax and usage inspired by <a href="https://laravel.com/docs/12.x/eloquent" target="_blank">Laravel's Eloquent ORM</a>.</p>
+<p>A <span class=" italic underline text-black dark:text-white italics">type-safe</span> active record Node ORM model layer.</p>
+<p> Built on <a href="https://kysely.dev/" target="_blank">Kysely</a>, with syntax and usage inspired by <a href="https://laravel.com/docs/12.x/eloquent" target="_blank">Laravel's Eloquent ORM</a>.</p>
 
 #links
   :::u-button
