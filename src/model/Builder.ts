@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Kysely, Expression, ExpressionBuilder, AliasedExpression } from "kysely";
+import { Kysely, Expression, ExpressionBuilder, AliasedExpression, ComparisonOperatorExpression } from "kysely";
 import { Model } from "@src/model/Model";
 export type AnyModelConstructor = abstract new (...args: any[]) => Model<any, any>;
 
@@ -83,7 +83,7 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
       | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
   >(
     column: Column,
-    operator: string,
+    operator: ComparisonOperatorExpression,
     value: Column extends keyof M["attributes"] & string ? M["attributes"][Column] | null | Expression<any> : any,
   ): this;
   where<

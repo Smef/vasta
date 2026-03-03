@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { Expression, ExpressionBuilder } from "kysely";
+import { Expression, ExpressionBuilder, ComparisonOperatorExpression } from "kysely";
 import { Builder, ExtractDB, ExtractTB, Selection, ExtractSelection } from "@src/model/Builder";
 import type { Model } from "@src/model/Model";
 
@@ -29,7 +29,7 @@ export abstract class StaticForwarder {
   >(
     this: T,
     column: Column,
-    operator: string,
+    operator: ComparisonOperatorExpression,
     value: Column extends keyof InstanceType<T>["attributes"] & string
       ? InstanceType<T>["attributes"][Column] | null | Expression<any>
       : any,
