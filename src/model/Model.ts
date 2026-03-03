@@ -1,10 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { Insertable, Kysely, Selectable, ExpressionBuilder, Expression } from "kysely";
-import { Builder, RelationBuilder, ExtractDB, ExtractTB, Selection, ExtractSelection } from "@src/model/Builder";
+import { Insertable, Kysely, Selectable } from "kysely";
+import { RelationBuilder } from "@src/model/Builder";
+import { StaticForwarder, type AnyModelConstructor } from "@src/model/StaticForwarder";
 import { getCallerMethodName } from "@src/util/caller";
-
-export type AnyModelConstructor = abstract new (...args: any[]) => Model<any, any>;
 
 export type ModelLifecycleEventName =
   | "creating"
@@ -16,20 +15,24 @@ export type ModelLifecycleEventName =
   | "deleting"
   | "deleted";
 
-export type ModelLifecycleEventHandler<M extends Model<any, any>> = {
+export type ModelLifecycleEventHandler<M extends Model<any, any, any>> = {
   bivarianceHack(model: M): void | Promise<void>;
 }["bivarianceHack"];
 
-export type ModelLifecycleEvents<M extends Model<any, any>> = Partial<
+export type ModelLifecycleEvents<M extends Model<any, any, any>> = Partial<
   Record<ModelLifecycleEventName, ModelLifecycleEventHandler<M>>
 >;
 
-export abstract class Model<DB, TB extends keyof DB & string> {
+export abstract class Model<
+  DB,
+  TB extends keyof DB & string,
+  PK extends keyof DB[TB] & string = keyof DB[TB] & string,
+> extends StaticForwarder {
   abstract db: Kysely<DB>;
   abstract table: TB;
-  abstract primaryKey: keyof DB[TB] & string;
+  abstract primaryKey: PK;
   hidden: (keyof DB[TB] & string)[] = [];
-  events: ModelLifecycleEvents<Model<DB, TB>> = {};
+  events: ModelLifecycleEvents<Model<DB, TB, PK>> = {};
 
   get defaultAttributes(): DefaultAttributes<Insertable<DB[TB]>> {
     return {};
@@ -41,6 +44,8 @@ export abstract class Model<DB, TB extends keyof DB & string> {
   loadedRelations: Record<string, any> = {};
 
   constructor(attributes: Partial<Insertable<DB[TB]>> = {}, isNew = true) {
+    super();
+
     if (isNew) {
       const defaults = this.defaultAttributes;
       const evaluatedDefaults: Record<string, any> = {};
@@ -138,7 +143,7 @@ export abstract class Model<DB, TB extends keyof DB & string> {
   }
 
   async save(): Promise<this> {
-    const pkValue = this.attributes[this.primaryKey as keyof typeof this.attributes];
+    const pkValue = this.attributes[this.primaryKey as unknown as keyof typeof this.attributes];
     const isNewModel = !this.exists;
 
     await this.dispatchEvent("saving");
@@ -197,7 +202,7 @@ export abstract class Model<DB, TB extends keyof DB & string> {
 
     await this.dispatchEvent("deleting");
 
-    const pkValue = this.attributes[this.primaryKey as keyof typeof this.attributes];
+    const pkValue = this.attributes[this.primaryKey as unknown as keyof typeof this.attributes];
     const result = await (this.db as any)
       .deleteFrom(this.table)
       .where(this.primaryKey as any, "=", pkValue)
@@ -209,194 +214,6 @@ export abstract class Model<DB, TB extends keyof DB & string> {
       return true;
     }
     return false;
-  }
-
-  // --- Static Pass-Through Methods ---
-
-  static query<T extends AnyModelConstructor>(this: T): Builder<InstanceType<T>> {
-    return new Builder(this as any);
-  }
-
-  static where<T extends AnyModelConstructor>(
-    this: T,
-    expression:
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
-  ): Builder<InstanceType<T>>;
-
-  static where<T extends AnyModelConstructor, Column extends keyof InstanceType<T>["attributes"] & string>(
-    this: T,
-    column: Column,
-    operator: string,
-    value: InstanceType<T>["attributes"][Column] | null | Expression<any>,
-  ): Builder<InstanceType<T>>;
-
-  static where<T extends AnyModelConstructor, Column extends keyof InstanceType<T>["attributes"] & string>(
-    this: T,
-    column: Column,
-    value: InstanceType<T>["attributes"][Column] | InstanceType<T>["attributes"][Column][] | null | Expression<any>,
-  ): Builder<InstanceType<T>>;
-
-  static where<T extends AnyModelConstructor>(
-    this: T,
-    column:
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
-    operator: string,
-    value: any,
-  ): Builder<InstanceType<T>>;
-
-  static where<T extends AnyModelConstructor>(
-    this: T,
-    column:
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
-    value: any[] | any,
-  ): Builder<InstanceType<T>>;
-
-  static where<T extends AnyModelConstructor>(this: T, ...args: any[]): Builder<InstanceType<T>> {
-    return (this as any).query().where(...args);
-  }
-
-  static whereIn<T extends AnyModelConstructor, Column extends keyof InstanceType<T>["attributes"] & string>(
-    this: T,
-    column: Column,
-    values:
-      | InstanceType<T>["attributes"][Column][]
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
-  ): Builder<InstanceType<T>>;
-
-  static whereIn<T extends AnyModelConstructor>(
-    this: T,
-    column:
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
-    values:
-      | any[]
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
-  ): Builder<InstanceType<T>>;
-
-  static whereIn<T extends AnyModelConstructor>(this: T, ...args: any[]): Builder<InstanceType<T>> {
-    return (this as any).query().whereIn(...args);
-  }
-
-  static whereNotNull<T extends AnyModelConstructor>(
-    this: T,
-    column:
-      | (keyof InstanceType<T>["attributes"] & string)
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
-  ): Builder<InstanceType<T>> {
-    return (this as any).query().whereNotNull(column);
-  }
-
-  static limit<T extends AnyModelConstructor>(this: T, value: number): Builder<InstanceType<T>> {
-    return (this as any).query().limit(value);
-  }
-
-  static offset<T extends AnyModelConstructor>(this: T, value: number): Builder<InstanceType<T>> {
-    return (this as any).query().offset(value);
-  }
-
-  static orderBy<T extends AnyModelConstructor>(
-    this: T,
-    column:
-      | (keyof InstanceType<T>["attributes"] & string)
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
-    direction: "asc" | "desc" = "asc",
-  ): Builder<InstanceType<T>> {
-    return (this as any).query().orderBy(column, direction);
-  }
-
-  static async first<T extends AnyModelConstructor>(this: T): Promise<InstanceType<T> | undefined> {
-    return (this as any).query().first();
-  }
-
-  static async firstOrFail<T extends AnyModelConstructor>(this: T): Promise<InstanceType<T>> {
-    return (this as any).query().firstOrFail();
-  }
-
-  static async count<T extends AnyModelConstructor>(this: T): Promise<number> {
-    return (this as any).query().count();
-  }
-
-  static async sum<T extends AnyModelConstructor>(
-    this: T,
-    column: keyof InstanceType<T>["attributes"] & string,
-  ): Promise<number> {
-    return (this as any).query().sum(column);
-  }
-
-  static async max<T extends AnyModelConstructor>(
-    this: T,
-    column: keyof InstanceType<T>["attributes"] & string,
-  ): Promise<number | null> {
-    return (this as any).query().max(column);
-  }
-
-  static async paginate<T extends AnyModelConstructor>(
-    this: T,
-    perPage?: number,
-    page?: number,
-  ): Promise<{
-    data: InstanceType<T>[];
-    total: number;
-    perPage: number;
-    currentPage: number;
-    lastPage: number;
-  }> {
-    return (this as any).query().paginate(perPage, page);
-  }
-
-  /**
-   * Static pass-through for find() with overloads
-   */
-  static async find<T extends AnyModelConstructor>(this: T, id: string | number): Promise<InstanceType<T> | undefined>;
-
-  static async find<T extends AnyModelConstructor>(this: T, ids: (string | number)[]): Promise<InstanceType<T>[]>;
-
-  static async find<T extends AnyModelConstructor>(
-    this: T,
-    idOrIds: string | number | (string | number)[],
-  ): Promise<InstanceType<T> | InstanceType<T>[] | undefined> {
-    return (this as any).query().find(idOrIds);
-  }
-
-  /**
-   * Static pass-through for findOrFail() with overloads
-   */
-  static async findOrFail<T extends AnyModelConstructor>(this: T, id: string | number): Promise<InstanceType<T>>;
-
-  static async findOrFail<T extends AnyModelConstructor>(this: T, ids: (string | number)[]): Promise<InstanceType<T>[]>;
-
-  static async findOrFail<T extends AnyModelConstructor>(
-    this: T,
-    idOrIds: string | number | (string | number)[],
-  ): Promise<InstanceType<T> | InstanceType<T>[]> {
-    return (this as any).query().findOrFail(idOrIds);
-  }
-
-  /**
-   * Static pass-through for select()
-   */
-  static select<T extends AnyModelConstructor, const K extends Selection<InstanceType<T>>>(
-    this: T,
-    columns: K[] | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => K[]),
-  ): Builder<InstanceType<T>, ExtractSelection<K>> {
-    return (this as any).query().select(columns);
-  }
-
-  static with<T extends AnyModelConstructor>(
-    this: T,
-    ...relations: (
-      | import("./Builder").RelationKeys<InstanceType<T>>
-      | import("./Builder").WithConstraints<InstanceType<T>>
-    )[]
-  ): Builder<InstanceType<T>> {
-    return (this as any).query().with(...relations);
   }
 
   /**
@@ -527,21 +344,26 @@ export interface ModelConfig<DB, TB extends keyof DB & string> {
   primaryKey?: keyof DB[TB] & string;
   hidden?: (keyof DB[TB] & string)[];
   attributes?: DefaultAttributes<Insertable<DB[TB]>>;
-  events?: ModelLifecycleEvents<Model<DB, TB>>;
+  events?: ModelLifecycleEvents<Model<DB, TB, keyof DB[TB] & string>>;
 }
+
+export type DefaultPrimaryKey<DB, TB extends keyof DB & string> = Extract<"id", keyof DB[TB] & string> extends never
+  ? keyof DB[TB] & string
+  : Extract<"id", keyof DB[TB] & string>;
 
 export function defineModel<
   DB,
   TB extends keyof DB & string,
+  PK extends keyof DB[TB] & string = DefaultPrimaryKey<DB, TB>,
   DA extends DefaultAttributes<Insertable<DB[TB]>> = Record<never, never>,
->(config: ModelConfig<DB, TB> & { attributes?: DA }) {
-  abstract class BaseModel extends Model<DB, TB> {
+>(config: Omit<ModelConfig<DB, TB>, "primaryKey" | "events"> & { primaryKey?: PK; events?: ModelLifecycleEvents<Model<DB, TB, PK>>; attributes?: DA }) {
+  abstract class BaseModel extends Model<DB, TB, PK> {
     db = config.db;
     table = config.table;
     // Fallback to "id" if not provided, explicitly cast to keep TypeScript happy
-    primaryKey = (config.primaryKey ?? "id") as keyof DB[TB] & string;
+    primaryKey = (config.primaryKey ?? "id") as PK;
     hidden = config.hidden ?? [];
-    events = (config.events ?? {}) as ModelLifecycleEvents<Model<DB, TB>>;
+    events = (config.events ?? {}) as ModelLifecycleEvents<Model<DB, TB, PK>>;
 
     get defaultAttributes(): DefaultAttributes<Insertable<DB[TB]>> {
       return (config.attributes ?? {}) as DefaultAttributes<Insertable<DB[TB]>>;

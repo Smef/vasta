@@ -26,10 +26,44 @@ describe("find", () => {
   it("should find multiple records by id", async () => {
     const pets = await Pet.find([2, 4]);
     expect(pets).toHaveLength(2);
-    expect(pets).not.toBeUndefined();
+    expectToBeDefined(pets);
     if (!pets) return;
     expect(pets[0].attributes.id).toBe(2);
     expect(pets[1].attributes.id).toBe(4);
+  });
+
+  it("should find multiple records by id", async () => {
+    const pets = await Pet.findOrFail([2, 4]);
+    expect(pets).toHaveLength(2);
+    if (!pets) return;
+    expect(pets[0].attributes.id).toBe(2);
+    expect(pets[1].attributes.id).toBe(4);
+  });
+
+  it("should enforce primary key typing for find", () => {
+    void Pet.find(1);
+    void Pet.find([1, 2]);
+
+    // @ts-expect-error - Pet primary key is numeric
+    void Pet.find("1");
+    // @ts-expect-error - Pet primary key is numeric
+    void Pet.find(["1", "2"]);
+
+    class PetByName extends defineModel({
+      db,
+      table: "pets",
+      primaryKey: "name",
+    }) {}
+
+    const foundPetByName = PetByName.findOrFail("Zuko");
+    expectToBeDefined(foundPetByName);
+
+    void PetByName.find(["Zuko", "Yoshi"]);
+
+    // @ts-expect-error - PetByName primary key is string
+    void PetByName.find(123);
+    // @ts-expect-error - PetByName primary key is string
+    void PetByName.find([1, 2]);
   });
 });
 
@@ -218,7 +252,7 @@ describe("query", () => {
   });
 
   it("should find a model using a where clause", async () => {
-    const result = await Pet.where("name", "=", "Zuko").get();
+    const result = await Pet.where("name", "Zuko").get();
     expect(result).toHaveLength(1);
     expect(result[0].attributes.name).toBe("Zuko");
   });
@@ -239,7 +273,7 @@ describe("query", () => {
 
   it("should select using expressions", async () => {
     const result = await Pet.select((eb) => [eb.fn("upper", ["name"]).as("upper_name")])
-      .where("name", "=", "Zuko")
+      .where("name", "Zuko")
       .executeTakeFirst();
 
     expectToBeDefined(result);

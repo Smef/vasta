@@ -49,6 +49,7 @@ export type Selection<M extends Model<any, any>> =
   | AliasedExpression<any, any>;
 
 export type ExtractSelection<T> = T extends string ? T : T extends AliasedExpression<any, infer A> ? A : never;
+export type PrimaryKeyValue<M extends Model<any, any, any>> = M["attributes"][M["primaryKey"]];
 
 export type RelationKeys<M> = {
   [K in keyof M]-?: M[K] extends RelationBuilder<any, any> ? K : never;
@@ -479,13 +480,13 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
   /**
    * Overload Signatures
    */
-  async find(id: string | number): Promise<M | undefined>;
-  async find(ids: (string | number)[]): Promise<M[]>;
+  async find(id: PrimaryKeyValue<M>): Promise<M | undefined>;
+  async find(ids: PrimaryKeyValue<M>[]): Promise<M[]>;
   /**
    * Finds a record by its primary key.
    * Immediately executes the query.
    */
-  async find(idOrIds: string | number | (string | number)[]): Promise<M | M[] | undefined> {
+  async find(idOrIds: PrimaryKeyValue<M> | PrimaryKeyValue<M>[]): Promise<M | M[] | undefined> {
     const dummy = new (this.modelConstructor as any)({});
     const pkColumn = dummy.primaryKey as string;
 
@@ -503,13 +504,13 @@ export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] 
   /**
    * Overload Signatures for findOrFail
    */
-  async findOrFail(id: string | number): Promise<M>;
-  async findOrFail(ids: (string | number)[]): Promise<M[]>;
+  async findOrFail(id: PrimaryKeyValue<M>): Promise<M>;
+  async findOrFail(ids: PrimaryKeyValue<M>[]): Promise<M[]>;
 
   /**
    * Implementation
    */
-  async findOrFail(idOrIds: string | number | (string | number)[]): Promise<M | M[]> {
+  async findOrFail(idOrIds: PrimaryKeyValue<M> | PrimaryKeyValue<M>[]): Promise<M | M[]> {
     if (Array.isArray(idOrIds)) {
       // 1. Remove duplicates so we have an accurate expected count
       const uniqueIds = Array.from(new Set(idOrIds));
