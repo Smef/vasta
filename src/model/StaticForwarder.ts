@@ -5,7 +5,8 @@ import { Builder, ExtractDB, ExtractTB, Selection, ExtractSelection } from "@src
 import type { Model } from "@src/model/Model";
 
 export type AnyModelConstructor = abstract new (...args: any[]) => Model<any, any>;
-export type PrimaryKeyValue<T extends AnyModelConstructor> = InstanceType<T>["attributes"][InstanceType<T>["primaryKey"]];
+export type PrimaryKeyValue<T extends AnyModelConstructor> =
+  InstanceType<T>["attributes"][InstanceType<T>["primaryKey"]];
 
 export abstract class StaticForwarder {
   static query<T extends AnyModelConstructor>(this: T): Builder<InstanceType<T>> {
@@ -146,7 +147,10 @@ export abstract class StaticForwarder {
     return (this as any).query().paginate(perPage, page);
   }
 
-  static async find<T extends AnyModelConstructor>(this: T, id: PrimaryKeyValue<T>): Promise<InstanceType<T> | undefined>;
+  static async find<T extends AnyModelConstructor>(
+    this: T,
+    id: PrimaryKeyValue<T>,
+  ): Promise<InstanceType<T> | undefined>;
 
   static async find<T extends AnyModelConstructor>(this: T, ids: PrimaryKeyValue<T>[]): Promise<InstanceType<T>[]>;
 
@@ -159,7 +163,10 @@ export abstract class StaticForwarder {
 
   static async findOrFail<T extends AnyModelConstructor>(this: T, id: PrimaryKeyValue<T>): Promise<InstanceType<T>>;
 
-  static async findOrFail<T extends AnyModelConstructor>(this: T, ids: PrimaryKeyValue<T>[]): Promise<InstanceType<T>[]>;
+  static async findOrFail<T extends AnyModelConstructor>(
+    this: T,
+    ids: PrimaryKeyValue<T>[],
+  ): Promise<InstanceType<T>[]>;
 
   static async findOrFail<T extends AnyModelConstructor>(
     this: T,

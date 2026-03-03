@@ -347,16 +347,21 @@ export interface ModelConfig<DB, TB extends keyof DB & string> {
   events?: ModelLifecycleEvents<Model<DB, TB, keyof DB[TB] & string>>;
 }
 
-export type DefaultPrimaryKey<DB, TB extends keyof DB & string> = Extract<"id", keyof DB[TB] & string> extends never
-  ? keyof DB[TB] & string
-  : Extract<"id", keyof DB[TB] & string>;
+export type DefaultPrimaryKey<DB, TB extends keyof DB & string> =
+  Extract<"id", keyof DB[TB] & string> extends never ? keyof DB[TB] & string : Extract<"id", keyof DB[TB] & string>;
 
 export function defineModel<
   DB,
   TB extends keyof DB & string,
   PK extends keyof DB[TB] & string = DefaultPrimaryKey<DB, TB>,
   DA extends DefaultAttributes<Insertable<DB[TB]>> = Record<never, never>,
->(config: Omit<ModelConfig<DB, TB>, "primaryKey" | "events"> & { primaryKey?: PK; events?: ModelLifecycleEvents<Model<DB, TB, PK>>; attributes?: DA }) {
+>(
+  config: Omit<ModelConfig<DB, TB>, "primaryKey" | "events"> & {
+    primaryKey?: PK;
+    events?: ModelLifecycleEvents<Model<DB, TB, PK>>;
+    attributes?: DA;
+  },
+) {
   abstract class BaseModel extends Model<DB, TB, PK> {
     db = config.db;
     table = config.table;
