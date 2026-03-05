@@ -10,7 +10,7 @@
     "paths": {
       "@/*": ["./*"],
       "@src/*": ["../src/*"],
-      "vasta": ["../src/index.ts"]
+      "vasta-orm": ["../src/index.ts"]
     }
   }
 }
