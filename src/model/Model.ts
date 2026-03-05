@@ -78,8 +78,7 @@ export abstract class Model<
             get(attrTarget, attrProp, attrReceiver) {
               if (target.accessors && typeof attrProp === "string" && attrProp in target.accessors) {
                 const accessor = target.accessors[attrProp];
-                const rawValue =
-                  attrProp in attrTarget ? (attrTarget as any)[attrProp] : undefined;
+                const rawValue = attrProp in attrTarget ? (attrTarget as any)[attrProp] : undefined;
                 return accessor(rawValue as any, target);
               }
               return Reflect.get(attrTarget, attrProp, attrReceiver);
@@ -87,8 +86,8 @@ export abstract class Model<
             set(attrTarget, attrProp, value, attrReceiver) {
               if (target.mutators && typeof attrProp === "string" && attrProp in target.mutators) {
                 const mutator = target.mutators[attrProp];
-            const next = mutator(value as any, target);
-            (attrTarget as any)[attrProp] = next;
+                const next = mutator(value as any, target);
+                (attrTarget as any)[attrProp] = next;
                 return true;
               }
               return Reflect.set(attrTarget, attrProp, value, attrReceiver);
@@ -103,9 +102,7 @@ export abstract class Model<
         if (target.accessors && typeof prop === "string" && prop in target.accessors) {
           const accessor = target.accessors[prop];
           const rawValue =
-            target.attributes && prop in target.attributes
-              ? (target.attributes as any)[prop]
-              : undefined;
+            target.attributes && prop in target.attributes ? (target.attributes as any)[prop] : undefined;
           return accessor(rawValue as any, target);
         }
 
@@ -398,17 +395,19 @@ export type DefaultAttributes<T> = { [K in keyof T]?: T[K] | (() => T[K]) };
 export type AttributeConfig<T, M> = {
   default?: T | (() => T);
   /**
-   * Accessors receive and return the logical value of the attribute.
-   * For required columns this is non-optional; optional/nullable
-   * columns should encode that in T (e.g. string | null).
+   * Accessors receive the original attribute value and can modify it as needed.
+   * The return type must match the original type of the attribute as defined in the Kysely type definition.
    */
   get?: (value: T, model: M) => T;
   /**
-   * Mutators receive the logical value and must return the value to persist.
-   * For required columns this is non-optional; optional/nullable
-   * columns should encode that in T.
+   * Mutators receive the new attribute value and must return the value to persist.
+   * The return type must match the original type of the attribute as defined in the Kysely type definition.
    */
   set?: (value: T, model: M) => T;
+  /**
+   * When true, this attribute is omitted from JSON serialization.
+   */
+  hidden?: boolean;
 };
 
 /** Table attributes get precise types from T; extra keys (virtual attrs) allow AttributeConfig<any, M> | unknown. */
@@ -421,7 +420,6 @@ export interface ModelConfig<DB, TB extends keyof DB & string> {
   table: TB;
   // Make primaryKey optional, it will default to "id" under the hood
   primaryKey?: keyof DB[TB] & string;
-  hidden?: (keyof DB[TB] & string)[];
   attributes?: ModelAttributesConfig<Model<DB, TB, keyof DB[TB] & string>, Selectable<DB[TB]>>;
   events?: ModelLifecycleEvents<Model<DB, TB, keyof DB[TB] & string>>;
 }
@@ -460,18 +458,33 @@ export function defineModel<
     table = config.table;
     // Fallback to "id" if not provided, explicitly cast to keep TypeScript happy
     primaryKey = (config.primaryKey ?? "id") as PK;
-    hidden = config.hidden ?? [];
+    hidden = (() => {
+      const attrHidden: (keyof DB[TB] & string)[] = [];
+      if (config.attributes) {
+        for (const [key, value] of Object.entries(config.attributes)) {
+          const attr = value as AttributeConfig<any, Model<DB, TB, PK>> | undefined;
+          if (attr && typeof attr === "object" && "hidden" in attr && attr.hidden) {
+            attrHidden.push(key as keyof DB[TB] & string);
+          }
+        }
+      }
+      return [...new Set(attrHidden)];
+    })();
     events = (config.events ?? {}) as ModelLifecycleEvents<Model<DB, TB, PK>>;
-    
+
     // Parse attributes config to separate defaults, accessors, and mutators
     constructor(attributes: ModelConstructorArgs<Insertable<DB[TB]>, DefaultedInsertable>, isNew = true) {
       super(attributes as any, isNew);
-      
+
       // Initialize accessors and mutators based on config.attributes
       if (config.attributes) {
         for (const [key, value] of Object.entries(config.attributes)) {
           const attr = value as AttributeConfig<any, Model<DB, TB, PK>> | undefined;
-          if (attr && typeof attr === "object" && ("get" in attr || "set" in attr || "default" in attr)) {
+          if (
+            attr &&
+            typeof attr === "object" &&
+            ("get" in attr || "set" in attr || "default" in attr || "hidden" in attr)
+          ) {
             if (typeof attr.get === "function") this.accessors[key] = attr.get;
             if (typeof attr.set === "function") this.mutators[key] = attr.set;
           }
@@ -496,8 +509,13 @@ export function defineModel<
       if (config.attributes) {
         for (const [key, value] of Object.entries(config.attributes)) {
           const attr = value as AttributeConfig<any, Model<DB, TB, PK>> | undefined;
-          if (attr && typeof attr === "object" && ("get" in attr || "set" in attr || "default" in attr)) {
-            if (attr.default !== undefined) defaults[key] = typeof attr.default === "function" ? attr.default() : attr.default;
+          if (
+            attr &&
+            typeof attr === "object" &&
+            ("get" in attr || "set" in attr || "default" in attr || "hidden" in attr)
+          ) {
+            if (attr.default !== undefined)
+              defaults[key] = typeof attr.default === "function" ? attr.default() : attr.default;
           } else {
             defaults[key] = value;
           }

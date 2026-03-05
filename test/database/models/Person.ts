@@ -5,7 +5,11 @@ import Pet from "@/database/models/Pet";
 export default class Person extends defineModel({
   db,
   table: "people",
-  hidden: ["secret"],
+  attributes: {
+    secret: {
+      hidden: true,
+    },
+  },
 }) {
   // A Person has many Pets
   get pets() {
