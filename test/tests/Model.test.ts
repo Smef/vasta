@@ -265,7 +265,7 @@ describe("query", () => {
   });
 
   it("should use IN when where is called with field and array", async () => {
-    const result = await Person.where("favorite_color", ["123", "green"]).orderBy("id", "asc").get();
+    const result = await Person.where("favorite_color", ["blue", "green"]).orderBy("id", "asc").get();
 
     expect(result).toHaveLength(2);
     expect(result.map((person) => person.attributes.name)).toEqual(["David", "Kate"]);
