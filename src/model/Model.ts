@@ -23,6 +23,12 @@ export type ModelLifecycleEvents<M extends Model<any, any, any>> = Partial<
   Record<ModelLifecycleEventName, ModelLifecycleEventHandler<M>>
 >;
 
+export type Accessor<M> = { bivarianceHack(value: any, model: M): any }["bivarianceHack"];
+export type Mutator<M> = { bivarianceHack(value: any, model: M): void }["bivarianceHack"];
+
+export type ModelAccessors<M> = Record<string, Accessor<M>>;
+export type ModelMutators<M> = Record<string, Mutator<M>>;
+
 export abstract class Model<
   DB,
   TB extends keyof DB & string,
@@ -33,6 +39,8 @@ export abstract class Model<
   abstract primaryKey: PK;
   hidden: (keyof DB[TB] & string)[] = [];
   events: ModelLifecycleEvents<Model<DB, TB, PK>> = {};
+  accessors: ModelAccessors<Model<DB, TB, PK>> = {};
+  mutators: ModelMutators<Model<DB, TB, PK>> = {};
 
   get defaultAttributes(): DefaultAttributes<Insertable<DB[TB]>> {
     return {};
@@ -63,9 +71,44 @@ export abstract class Model<
 
     return new Proxy(this, {
       get(target, prop, receiver) {
+        // Special handling for attributes: wrap in a proxy so reads go through accessors/mutators
+        if (prop === "attributes") {
+          const rawAttributes = target.attributes;
+          return new Proxy(rawAttributes, {
+            get(attrTarget, attrProp, attrReceiver) {
+              if (target.accessors && typeof attrProp === "string" && attrProp in target.accessors) {
+                const accessor = target.accessors[attrProp];
+                const rawValue =
+                  attrProp in attrTarget ? (attrTarget as any)[attrProp] : undefined;
+                return accessor(rawValue as any, target);
+              }
+              return Reflect.get(attrTarget, attrProp, attrReceiver);
+            },
+            set(attrTarget, attrProp, value, attrReceiver) {
+              if (target.mutators && typeof attrProp === "string" && attrProp in target.mutators) {
+                const mutator = target.mutators[attrProp];
+            const next = mutator(value as any, target);
+            (attrTarget as any)[attrProp] = next;
+                return true;
+              }
+              return Reflect.set(attrTarget, attrProp, value, attrReceiver);
+            },
+          });
+        }
+
         if (prop in target) {
           return Reflect.get(target, prop, receiver);
         }
+
+        if (target.accessors && typeof prop === "string" && prop in target.accessors) {
+          const accessor = target.accessors[prop];
+          const rawValue =
+            target.attributes && prop in target.attributes
+              ? (target.attributes as any)[prop]
+              : undefined;
+          return accessor(rawValue as any, target);
+        }
+
         if (target.attributes && typeof prop === "string" && prop in target.attributes) {
           return target.attributes[prop as keyof typeof target.attributes];
         }
@@ -75,6 +118,14 @@ export abstract class Model<
         if (prop in target) {
           return Reflect.set(target, prop, value, receiver);
         }
+
+        if (target.mutators && typeof prop === "string" && prop in target.mutators) {
+          const mutator = target.mutators[prop];
+          const next = mutator(value as any, target);
+          target.attributes[prop as keyof typeof target.attributes] = next as any;
+          return true;
+        }
+
         if (target.attributes && typeof prop === "string") {
           target.attributes[prop as keyof typeof target.attributes] = value as any;
           return true;
@@ -86,6 +137,15 @@ export abstract class Model<
 
   assign(attributes: Partial<Insertable<DB[TB]>>): this {
     this.attributes = { ...this.attributes, ...attributes } as unknown as Selectable<DB[TB]>;
+
+    if (this.mutators) {
+      for (const key of Object.keys(attributes)) {
+        if (key in this.mutators) {
+          this.mutators[key](this.attributes[key as keyof typeof this.attributes], this);
+        }
+      }
+    }
+
     return this;
   }
 
@@ -333,9 +393,28 @@ export type Simplify<T> = { [K in keyof T]: T[K] } & {};
 
 export type ModelConstructorArgs<T, DA> = Simplify<Omit<T, keyof DA> & Partial<Pick<T, keyof DA & keyof T>>>;
 
-export type DefaultAttributes<T> = {
-  [K in keyof T]?: T[K] | (() => T[K]);
+export type DefaultAttributes<T> = { [K in keyof T]?: T[K] | (() => T[K]) };
+
+export type AttributeConfig<T, M> = {
+  default?: T | (() => T);
+  /**
+   * Accessors receive and return the logical value of the attribute.
+   * For required columns this is non-optional; optional/nullable
+   * columns should encode that in T (e.g. string | null).
+   */
+  get?: (value: T, model: M) => T;
+  /**
+   * Mutators receive the logical value and must return the value to persist.
+   * For required columns this is non-optional; optional/nullable
+   * columns should encode that in T.
+   */
+  set?: (value: T, model: M) => T;
 };
+
+/** Table attributes get precise types from T; extra keys (virtual attrs) allow AttributeConfig<any, M> | unknown. */
+export type ModelAttributesConfig<M, T extends Record<string, unknown>> = {
+  [K in keyof T]?: AttributeConfig<T[K], M> | T[K] | (() => T[K]);
+} & Record<string, AttributeConfig<any, M> | unknown>;
 
 export interface ModelConfig<DB, TB extends keyof DB & string> {
   db: Kysely<DB>;
@@ -343,25 +422,39 @@ export interface ModelConfig<DB, TB extends keyof DB & string> {
   // Make primaryKey optional, it will default to "id" under the hood
   primaryKey?: keyof DB[TB] & string;
   hidden?: (keyof DB[TB] & string)[];
-  attributes?: DefaultAttributes<Insertable<DB[TB]>>;
+  attributes?: ModelAttributesConfig<Model<DB, TB, keyof DB[TB] & string>, Selectable<DB[TB]>>;
   events?: ModelLifecycleEvents<Model<DB, TB, keyof DB[TB] & string>>;
 }
 
 export type DefaultPrimaryKey<DB, TB extends keyof DB & string> =
   Extract<"id", keyof DB[TB] & string> extends never ? keyof DB[TB] & string : Extract<"id", keyof DB[TB] & string>;
 
+// Keys in the attributes config that have an explicit default.
+type DefaultedAttributeKeys<DA> = {
+  [K in keyof DA]: DA[K] extends { default: any } ? K : never;
+}[keyof DA];
+
 export function defineModel<
   DB,
   TB extends keyof DB & string,
   PK extends keyof DB[TB] & string = DefaultPrimaryKey<DB, TB>,
-  DA extends DefaultAttributes<Insertable<DB[TB]>> = Record<never, never>,
+  // DA is the *narrow* attributes config type, but attributes are always at least ModelAttributesConfig<...>
+  DA extends Partial<ModelAttributesConfig<Model<DB, TB, PK>, Selectable<DB[TB]>>> = Record<never, never>,
 >(
-  config: Omit<ModelConfig<DB, TB>, "primaryKey" | "events"> & {
+  config: Omit<ModelConfig<DB, TB>, "primaryKey" | "events" | "attributes"> & {
     primaryKey?: PK;
     events?: ModelLifecycleEvents<Model<DB, TB, PK>>;
-    attributes?: DA;
+    /**
+     * Use explicit type here so object literals get contextual typing and
+     * get/set callbacks are properly inferred. DA further narrows this type.
+     */
+    attributes?: ModelAttributesConfig<Model<DB, TB, PK>, Selectable<DB[TB]>> & DA;
   },
 ) {
+  // Derive the subset of Insertable<DB[TB]> that have defaults defined in DA.
+  type DefaultedInsertableKeys = Extract<DefaultedAttributeKeys<DA>, keyof Insertable<DB[TB]>>;
+  type DefaultedInsertable = Pick<Insertable<DB[TB]>, DefaultedInsertableKeys>;
+
   abstract class BaseModel extends Model<DB, TB, PK> {
     db = config.db;
     table = config.table;
@@ -369,18 +462,53 @@ export function defineModel<
     primaryKey = (config.primaryKey ?? "id") as PK;
     hidden = config.hidden ?? [];
     events = (config.events ?? {}) as ModelLifecycleEvents<Model<DB, TB, PK>>;
+    
+    // Parse attributes config to separate defaults, accessors, and mutators
+    constructor(attributes: ModelConstructorArgs<Insertable<DB[TB]>, DefaultedInsertable>, isNew = true) {
+      super(attributes as any, isNew);
+      
+      // Initialize accessors and mutators based on config.attributes
+      if (config.attributes) {
+        for (const [key, value] of Object.entries(config.attributes)) {
+          const attr = value as AttributeConfig<any, Model<DB, TB, PK>> | undefined;
+          if (attr && typeof attr === "object" && ("get" in attr || "set" in attr || "default" in attr)) {
+            if (typeof attr.get === "function") this.accessors[key] = attr.get;
+            if (typeof attr.set === "function") this.mutators[key] = attr.set;
+          }
+        }
+      }
 
-    get defaultAttributes(): DefaultAttributes<Insertable<DB[TB]>> {
-      return (config.attributes ?? {}) as DefaultAttributes<Insertable<DB[TB]>>;
+      // Apply mutators for initial attributes if it's a new model
+      if (isNew && this.mutators) {
+        for (const key of Object.keys(this.attributes)) {
+          if (key in this.mutators) {
+            const mutator = this.mutators[key];
+            const current = this.attributes[key as keyof typeof this.attributes];
+            const next = mutator(current as any, this);
+            (this.attributes as any)[key] = next;
+          }
+        }
+      }
     }
 
-    constructor(attributes: ModelConstructorArgs<Insertable<DB[TB]>, Exclude<DA, undefined>>, isNew = true) {
-      super(attributes as any, isNew);
+    get defaultAttributes(): DefaultAttributes<Insertable<DB[TB]>> {
+      const defaults: Record<string, any> = {};
+      if (config.attributes) {
+        for (const [key, value] of Object.entries(config.attributes)) {
+          const attr = value as AttributeConfig<any, Model<DB, TB, PK>> | undefined;
+          if (attr && typeof attr === "object" && ("get" in attr || "set" in attr || "default" in attr)) {
+            if (attr.default !== undefined) defaults[key] = typeof attr.default === "function" ? attr.default() : attr.default;
+          } else {
+            defaults[key] = value;
+          }
+        }
+      }
+      return defaults as DefaultAttributes<Insertable<DB[TB]>>;
     }
   }
 
   return BaseModel as unknown as (abstract new (
-    attributes: ModelConstructorArgs<Insertable<DB[TB]>, Exclude<DA, undefined>>,
+    attributes: ModelConstructorArgs<Insertable<DB[TB]>, DefaultedInsertable>,
   ) => BaseModel & Selectable<DB[TB]>) & {
     [K in keyof typeof BaseModel]: (typeof BaseModel)[K];
   };

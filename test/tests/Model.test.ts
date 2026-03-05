@@ -2,8 +2,7 @@ import { describe, it, expect } from "vitest";
 import { defineModel } from "vasta-orm";
 
 import Pet from "@/database/models/Pet";
-import Vet from "../database/models/Vet";
-import VetVisit from "../database/models/VetVisit";
+import SuperPet from "@/database/models/SuperPet";
 import Person from "@/database/models/Person";
 import { getQueryCount, resetQueryCount } from "@/database/db";
 import db from "@/database/db";
@@ -92,7 +91,7 @@ describe("constructor", () => {
     expect(pet.save()).resolves.not.toThrow();
   });
 
-  it("should evaluate sync function defaults immediately upon instantiation", async () => {
+  it("should evaluate sync function defaults immediately upon instantiation", () => {
     class Dummy extends defineModel({
       db,
       table: "pets",
@@ -103,6 +102,7 @@ describe("constructor", () => {
       },
     }) {}
 
+    // @ts-expect-error - This is just a test for the default attributes
     const dummy = new Dummy({});
 
     // Sync functions are evaluated and assigned inside constructor
@@ -609,7 +609,9 @@ describe("lifecycle events", () => {
       db,
       table: "pets",
       attributes: {
-        counter: 0,
+        counter: {
+          default: 0,
+        },
       },
       events: {
         creating: (model) => {
@@ -715,7 +717,9 @@ describe("lifecycle events", () => {
       db,
       table: "pets",
       attributes: {
-        counter: 0,
+        counter: {
+          default: 0,
+        },
       },
       events: {
         saving: async () => {
@@ -750,7 +754,9 @@ describe("lifecycle events", () => {
       db,
       table: "pets",
       attributes: {
-        counter: 0,
+        counter: {
+          default: 0,
+        },
       },
       events: {
         deleting: async () => {

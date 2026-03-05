@@ -54,8 +54,9 @@ export interface PetsTable {
   type: string;
   counter: number;
   person_id?: number;
+  // timestamps should be a date for both insert and update (or undefined on update)
   created_at: ColumnType<Date, string | undefined, never>;
-  updated_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, Date | undefined, never>;
 }
 
 export type Pet = Selectable<PetsTable>;
