@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { Insertable, Kysely, Selectable } from "kysely";
+import { Insertable, Kysely, Selectable, Updateable } from "kysely";
 import { RelationBuilder } from "@src/model/Builder";
 import { StaticForwarder, type AnyModelConstructor } from "@src/model/StaticForwarder";
 import { getCallerMethodName } from "@src/util/caller";
@@ -24,10 +24,13 @@ export type ModelLifecycleEvents<M extends Model<any, any, any>> = Partial<
 >;
 
 export type Accessor<M> = { bivarianceHack(value: any, model: M): any }["bivarianceHack"];
-export type Mutator<M> = { bivarianceHack(value: any, model: M): void }["bivarianceHack"];
+export type Mutator<M> = { bivarianceHack(value: any, model: M): any }["bivarianceHack"];
 
 export type ModelAccessors<M> = Record<string, Accessor<M>>;
 export type ModelMutators<M> = Record<string, Mutator<M>>;
+
+/** Used to write to attributes without going through the attributes proxy (avoids double-applying mutators). */
+const RAW_ATTRIBUTES = Symbol.for("Model.rawAttributes");
 
 export abstract class Model<
   DB,
@@ -68,6 +71,7 @@ export abstract class Model<
     }
 
     this.originalAttributes = { ...this.attributes };
+    (this as any)[RAW_ATTRIBUTES] = this.attributes;
 
     return new Proxy(this, {
       get(target, prop, receiver) {
@@ -132,17 +136,58 @@ export abstract class Model<
     });
   }
 
-  assign(attributes: Partial<Insertable<DB[TB]>>): this {
-    this.attributes = { ...this.attributes, ...attributes } as unknown as Selectable<DB[TB]>;
-
-    if (this.mutators) {
-      for (const key of Object.keys(attributes)) {
-        if (key in this.mutators) {
-          this.mutators[key](this.attributes[key as keyof typeof this.attributes], this);
+  assign(attributes: Partial<Updateable<DB[TB]>>): this {
+    const raw = (this as any)[RAW_ATTRIBUTES] as Record<string, any> | undefined;
+    if (!raw) {
+      this.attributes = { ...this.attributes, ...attributes } as unknown as Selectable<DB[TB]>;
+      if (this.mutators) {
+        for (const key of Object.keys(attributes)) {
+          if (key in this.mutators) {
+            const mutator = this.mutators[key];
+            const incoming = this.attributes[key as keyof typeof this.attributes];
+            const next = mutator(incoming as any, this);
+            (this.attributes as any)[key] = next;
+          }
         }
       }
+      return this;
     }
+    this.setRawAttributes(attributes);
+    if (this.mutators) {
+      const current = this.getRawAttributes() as Record<string, any>;
+      const updates: Record<string, any> = {};
+      for (const key of Object.keys(attributes)) {
+        if (key in this.mutators) {
+          updates[key] = this.mutators[key](current[key], this);
+        }
+      }
+      if (Object.keys(updates).length > 0) this.setRawAttributes(updates);
+    }
+    return this;
+  }
 
+  /**
+   * Returns a shallow copy of the stored attributes without applying accessors.
+   * Use when you need the raw persisted values (e.g. for debugging or bypassing get).
+   */
+  getRawAttributes(): Selectable<DB[TB]> {
+    const raw = (this as any)[RAW_ATTRIBUTES] as Record<string, unknown> | undefined;
+    const source = raw ?? (this.attributes as Record<string, unknown>);
+    return { ...source } as Selectable<DB[TB]>;
+  }
+
+  /**
+   * Sets attributes directly on the model without applying mutators.
+   * Use when you need to write persisted values as-is (e.g. after loading from DB).
+   * Accepts both Insertable and Updateable so assign() and direct callers can pass their payloads.
+   */
+  setRawAttributes(attributes: Partial<Updateable<DB[TB]>> | Partial<Insertable<DB[TB]>>): this {
+    const raw = (this as any)[RAW_ATTRIBUTES] as Record<string, any> | undefined;
+    if (raw) {
+      Object.assign(raw, attributes);
+    } else {
+      this.attributes = { ...this.attributes, ...attributes } as unknown as Selectable<DB[TB]>;
+    }
     return this;
   }
 
@@ -165,12 +210,12 @@ export abstract class Model<
 
   // --- Active Record Methods ---
 
-  getDirty(): Partial<Insertable<DB[TB]>> {
+  getDirty(): Partial<Updateable<DB[TB]>> {
     if (!this.exists) {
-      return { ...(this.attributes as unknown as Partial<Insertable<DB[TB]>>) };
+      return { ...(this.attributes as unknown as Partial<Updateable<DB[TB]>>) };
     }
 
-    const dirty: Partial<Insertable<DB[TB]>> = {};
+    const dirty: Partial<Updateable<DB[TB]>> = {};
     const keys = new Set([
       ...Object.keys(this.attributes as Record<string, unknown>),
       ...Object.keys(this.originalAttributes as Record<string, unknown>),
@@ -182,7 +227,7 @@ export abstract class Model<
       const originalValue = this.originalAttributes[typedKey as keyof typeof this.originalAttributes];
 
       if (currentValue !== originalValue) {
-        dirty[typedKey as keyof Insertable<DB[TB]>] = currentValue as unknown as Insertable<DB[TB]>[keyof Insertable<
+        dirty[typedKey as keyof Updateable<DB[TB]>] = currentValue as unknown as Updateable<DB[TB]>[keyof Updateable<
           DB[TB]
         >];
       }
@@ -236,12 +281,13 @@ export abstract class Model<
       // INSERT
       const result = await this.db
         .insertInto(this.table)
-        .values(this.attributes as any)
+        .values(this.getRawAttributes() as any)
         .returningAll()
         .executeTakeFirst();
 
       if (result) {
         this.attributes = result as any;
+        (this as any)[RAW_ATTRIBUTES] = this.attributes;
         this.originalAttributes = { ...this.attributes };
         this.exists = true;
         await this.dispatchEvent("created");
@@ -491,16 +537,18 @@ export function defineModel<
         }
       }
 
-      // Apply mutators for initial attributes if it's a new model
+      // Apply mutators for initial attributes if it's a new model. Use setRawAttributes
+      // so we don't go through the attributes proxy set trap (which would apply the
+      // mutator again when this is the proxy).
       if (isNew && this.mutators) {
-        for (const key of Object.keys(this.attributes)) {
+        const current = this.getRawAttributes() as Record<string, any>;
+        const updates: Record<string, any> = {};
+        for (const key of Object.keys(current)) {
           if (key in this.mutators) {
-            const mutator = this.mutators[key];
-            const current = this.attributes[key as keyof typeof this.attributes];
-            const next = mutator(current as any, this);
-            (this.attributes as any)[key] = next;
+            updates[key] = this.mutators[key](current[key], this);
           }
         }
+        if (Object.keys(updates).length > 0) this.setRawAttributes(updates);
       }
     }
 

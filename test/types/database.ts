@@ -55,7 +55,7 @@ export interface PetsTable {
   counter: number;
   person_id?: number;
   // timestamps should be a date for both insert and update (or undefined on update)
-  created_at: ColumnType<Date, string | undefined, never>;
+  created_at: ColumnType<Date, Date | undefined, never>;
   updated_at: ColumnType<Date, Date | undefined, never>;
 }
 

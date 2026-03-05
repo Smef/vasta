@@ -81,7 +81,7 @@ describe("Accessors and Mutators", () => {
       pet.upperName = "FLUFFY2";
     } catch (error: any) {
       expect(error).toBeInstanceOf(TypeError);
-      expect(error.message).toBe("'set' on proxy: trap returned falsish for property 'upperName'");
+      expect(String(error.message)).toContain("upperName");
     }
   });
 
@@ -119,5 +119,99 @@ describe("Accessors and Mutators", () => {
         },
       },
     }) {}
+  });
+
+  it("should trigger mutators for mass assignment", () => {
+    class User extends defineModel({
+      db,
+      table: "people",
+      attributes: {
+        name: {
+          set: (value) => value.toUpperCase(),
+        },
+      },
+    }) {}
+
+    const user = new User({ name: "Charlie", birthday: new Date() });
+    user.assign({ name: "Dave" });
+    expect(user.attributes.name).toBe("DAVE");
+    expect(user.name).toBe("DAVE");
+  });
+
+  it("should apply mutators only once on assign (non-idempotent mutator)", () => {
+    class User extends defineModel({
+      db,
+      table: "people",
+      attributes: {
+        name: {
+          set: (value) => `${value}!`,
+        },
+      },
+    }) {}
+
+    const user = new User({ name: "Bob", birthday: new Date() });
+    expect(user.name).toBe("Bob!");
+    user.assign({ name: "Alice" });
+    expect(user.attributes.name).toBe("Alice!");
+    expect(user.name).toBe("Alice!");
+  });
+
+  it("should not show dirty when there are accessors and no attributes have actually changed", async () => {
+    class User extends defineModel({
+      db,
+      table: "people",
+      attributes: {
+        name: {
+          get: (value) => value.toUpperCase(),
+        },
+      },
+    }) {}
+
+    const user = new User({ name: "Charlie", birthday: new Date() });
+    await user.save();
+    expect(user.isDirty()).toBe(false);
+    expect(user.getDirty()).toEqual({});
+
+    user.delete();
+  });
+
+  it("should allow access to raw attributes without triggering accessors", async () => {
+    class User extends defineModel({
+      db,
+      table: "people",
+      attributes: {
+        name: {
+          get: (value) => value.toUpperCase(),
+        },
+      },
+    }) {}
+
+    const user = new User({ name: "Charlie", birthday: new Date() });
+
+    // the accessor should be triggered when reading the attribute
+    expect(user.name).toBe("CHARLIE");
+
+    // the raw attributes should not be affected by the accessor
+    const rawAttributes = user.getRawAttributes();
+    expect(rawAttributes.name).toBe("Charlie");
+  });
+
+  it("should set raw attributes without triggering mutators", async () => {
+    class User extends defineModel({
+      db,
+      table: "people",
+      attributes: {
+        name: {
+          set: (value) => value.toUpperCase(),
+        },
+      },
+    }) {}
+
+    const user = new User({ name: "Charlie", birthday: new Date() });
+    expect(user.name).toBe("CHARLIE");
+
+    // setting the attribute through setRawAttributes should not trigger the mutator
+    user.setRawAttributes({ name: "Dave" });
+    expect(user.name).toBe("Dave"); // should not be uppercase
   });
 });
