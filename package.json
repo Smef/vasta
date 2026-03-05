@@ -1,6 +1,6 @@
 {
   "name": "vasta-orm",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Active record ORM built on top of Kysely",
   "type": "module",
   "author": "David Nahodyl <david.nahodyl@gmail.com>",
