@@ -54,6 +54,8 @@ export interface PetsTable {
   type: string;
   counter: number;
   person_id?: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, never>;
 }
 
 export type Pet = Selectable<PetsTable>;
