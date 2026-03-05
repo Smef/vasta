@@ -7,7 +7,9 @@ export default class Pet extends defineModel({
   db,
   table: "pets",
   attributes: {
-    counter: 0,
+    counter: {
+      default: 0,
+    },
   },
 }) {
   // A Pet belongs to a Person

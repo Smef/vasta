@@ -1,6 +1,6 @@
 {
   "name": "vasta-orm",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Active record ORM built on top of Kysely",
   "type": "module",
   "author": "David Nahodyl <david.nahodyl@gmail.com>",
@@ -33,9 +33,9 @@
   "scripts": {
     "dev": "tsc --watch",
     "dev:docs": "cd docs && pnpm run dev",
-    "test": "vitest run",
+    "test": "vitest run --typecheck",
     "test:reset": "pnpm run db:reset && vitest run",
-    "test:watch": "vitest",
+    "test:watch": "vitest --typecheck",
     "clean": "rm -rf dist/*",
     "build": "pnpm run clean && (npm run build:esm & npm run build:cjs)",
     "build:esm": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json --resolve-full-paths --resolve-full-extension .js",

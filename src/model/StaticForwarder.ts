@@ -4,7 +4,7 @@ import { Expression, ExpressionBuilder, ComparisonOperatorExpression } from "kys
 import { Builder, ExtractDB, ExtractTB, Selection, ExtractSelection } from "@src/model/Builder";
 import type { Model } from "@src/model/Model";
 
-export type AnyModelConstructor = abstract new (...args: any[]) => Model<any, any>;
+export type AnyModelConstructor = abstract new (...args: any[]) => Model<any, any, any>;
 export type PrimaryKeyValue<T extends AnyModelConstructor> =
   InstanceType<T>["attributes"][InstanceType<T>["primaryKey"]];
 

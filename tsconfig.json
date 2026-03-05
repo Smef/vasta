@@ -10,7 +10,8 @@
     "baseUrl": ".",
     "paths": {
       "@src/*": ["./src/*"],
-      "@test/*": ["./test/*"]
+      "@test/*": ["./test/*"],
+      "vasta-orm": ["./src/index.ts"]
     }
   },
   "include": ["src/**/*"],
