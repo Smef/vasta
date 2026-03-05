@@ -214,4 +214,29 @@ describe("Accessors and Mutators", () => {
     user.setRawAttributes({ name: "Dave" });
     expect(user.name).toBe("Dave"); // should not be uppercase
   });
+
+  it("should return raw attributes (not accessor proxy) after INSERT save", async () => {
+    class User extends defineModel({
+      db,
+      table: "people",
+      attributes: {
+        name: {
+          get: (value) => value.toUpperCase(),
+        },
+      },
+    }) {}
+
+    const user = new User({ name: "Charlie", birthday: new Date() });
+    expect(user.name).toBe("CHARLIE");
+    expect(user.getRawAttributes().name).toBe("Charlie");
+
+    await user.save();
+
+    // After INSERT save, RAW_ATTRIBUTES must point to the actual row object, not the inner
+    // attributes proxy. Otherwise getRawAttributes() would return accessor-transformed values.
+    expect(user.name).toBe("CHARLIE");
+    expect(user.getRawAttributes().name).toBe("Charlie");
+
+    user.delete();
+  });
 });

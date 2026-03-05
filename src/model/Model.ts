@@ -287,7 +287,7 @@ export abstract class Model<
 
       if (result) {
         this.attributes = result as any;
-        (this as any)[RAW_ATTRIBUTES] = this.attributes;
+        (this as any)[RAW_ATTRIBUTES] = result;
         this.originalAttributes = { ...this.attributes };
         this.exists = true;
         await this.dispatchEvent("created");
