@@ -1,3 +1,3 @@
-import { defineModel } from "@src/model/Model";
+import { defineModel, RequireSelected } from "@src/model/Model";
 
-export { defineModel };
+export { defineModel, RequireSelected };
