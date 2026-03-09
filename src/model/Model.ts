@@ -474,7 +474,7 @@ export type DefaultPrimaryKey<DB, TB extends keyof DB & string> =
   Extract<"id", keyof DB[TB] & string> extends never ? keyof DB[TB] & string : Extract<"id", keyof DB[TB] & string>;
 
 /** Utility type to require that certain attributes have been selected when defining a function on a model. */
-export type RequiresSelected<
+export type RequireSelected<
   M extends { attributes: Record<string, unknown> },
   K extends keyof M["attributes"] & string,
 > = Omit<M, "attributes" | (keyof M["attributes"] & string)> & {

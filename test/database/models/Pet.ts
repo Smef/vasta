@@ -1,9 +1,9 @@
-import { defineModel, RequiresSelected } from "vasta-orm";
+import { defineModel, RequireSelected } from "vasta-orm";
 import Person from "@/database/models/Person";
 import Vet from "@/database/models/Vet";
 import db from "@/database/db";
 
-type Requires<K extends keyof Pet["attributes"] & string> = RequiresSelected<Pet, K>;
+type Requires<K extends keyof Pet["attributes"] & string> = RequireSelected<Pet, K>;
 
 export default class Pet extends defineModel({
   db,
@@ -30,7 +30,7 @@ export default class Pet extends defineModel({
   }
 
   // Restrict 'this' to require BOTH 'counter' and 'id'
-  async incrementAndSave(this: RequiresSelected<Pet, "counter" | "id">) {
+  async incrementAndSave(this: RequireSelected<Pet, "counter" | "id">) {
     this.incrementCounter(); // Valid, because we required "counter"
     await this.save(); // Valid, because we required "id" (the primary key)
   }
