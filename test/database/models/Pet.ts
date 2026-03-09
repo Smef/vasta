@@ -1,7 +1,9 @@
-import { defineModel } from "vasta-orm";
+import { defineModel, RequiresSelected } from "vasta-orm";
 import Person from "@/database/models/Person";
 import Vet from "@/database/models/Vet";
 import db from "@/database/db";
+
+type Requires<K extends keyof Pet["attributes"] & string> = RequiresSelected<Pet, K>;
 
 export default class Pet extends defineModel({
   db,
@@ -22,8 +24,18 @@ export default class Pet extends defineModel({
     return this.belongsToMany(Vet, "vet_visits", "pet_id", "vet_id");
   }
 
-  incrementCounter() {
+  // Restrict 'this' to require the 'counter' attribute
+  incrementCounter(this: Requires<"counter">) {
     this.attributes.counter += 1;
-    return this.save();
+  }
+
+  // Restrict 'this' to require BOTH 'counter' and 'id'
+  async incrementAndSave(this: RequiresSelected<Pet, "counter" | "id">) {
+    this.incrementCounter(); // Valid, because we required "counter"
+    await this.save(); // Valid, because we required "id" (the primary key)
+  }
+
+  incrementCounterWithoutSafety() {
+    this.attributes.counter += 1;
   }
 }

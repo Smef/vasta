@@ -277,10 +277,9 @@ describe("query", () => {
       .executeTakeFirst();
 
     expectToBeDefined(result);
-    const name = result.upper_name; // should have type string
     if (!result) return;
     expect(result.attributes.upper_name).toBe("ZUKO");
-    // expect(result.upper_name).toBe("ZUKO");
+    expect(result.upper_name).toBe("ZUKO");
   });
 
   it("should select using expression builder callback", async () => {
@@ -543,7 +542,7 @@ describe("save", () => {
     const pet = await Pet.findOrFail(1);
     const initialCounter = pet.attributes.counter;
 
-    await pet.incrementCounter();
+    await pet.incrementAndSave();
 
     const updatedPet = await Pet.findOrFail(1);
     expect(updatedPet.attributes.counter).toBe(initialCounter + 1);

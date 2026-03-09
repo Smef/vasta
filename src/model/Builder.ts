@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Kysely, Expression, ExpressionBuilder, AliasedExpression, ComparisonOperatorExpression } from "kysely";
 import { Model } from "@src/model/Model";
-export type AnyModelConstructor = abstract new (...args: any[]) => Model<any, any>;
+export type AnyModelConstructor = abstract new (...args: any[]) => Model<any, any, any>;
 
 export type RelationMetadata = {
   type: "hasMany" | "belongsTo" | "hasOne" | "belongsToMany";
@@ -14,16 +14,26 @@ export type RelationMetadata = {
   relatedPivotKey?: string;
 };
 
-export type SelectedModel<M extends Model<any, any>, S extends keyof M["attributes"] | string = never> = Omit<
-  M,
-  "attributes" | (keyof M["attributes"] & string)
-> & {
-  attributes: [S] extends [never]
-    ? M["attributes"]
-    : Pick<M["attributes"], S & keyof M["attributes"]> & Record<Exclude<S, keyof M["attributes"]>, any>;
-} & ([S] extends [never]
-    ? M["attributes"]
-    : Pick<M["attributes"], S & keyof M["attributes"]> & Record<Exclude<S, keyof M["attributes"]>, any>);
+export type SelectedModel<M extends Model<any, any, any>, S extends keyof M["attributes"] | string = never> =
+  // If no columns were explicitly selected, return the full model untouched.
+  [S] extends [never]
+    ? M
+    : // Strip out the attributes object, save/delete, AND the dynamic top-level properties
+      Omit<M, "attributes" | "save" | "delete" | (keyof M["attributes"] & string)> &
+        // Conditionally restore save/delete if the primary key is selected
+        ([Extract<M["primaryKey"], S & string>] extends [never]
+          ? {
+              save: never;
+              delete: never;
+            }
+          : Pick<M, "save" | "delete">) &
+        // Restore the attributes object, containing ONLY the selected keys
+        {
+          attributes: Pick<M["attributes"], S & keyof M["attributes"]> & Record<Exclude<S, keyof M["attributes"]>, any>;
+        } &
+        // Restore the dynamic top-level accessors, containing ONLY the selected keys
+        Pick<M["attributes"], S & keyof M["attributes"]> &
+        Record<Exclude<S, keyof M["attributes"]>, any>;
 
 // Define the shape of our constraints
 type Constraint =

@@ -279,7 +279,7 @@ export abstract class Model<
       await this.dispatchEvent("updated");
     } else {
       // INSERT
-      const result = await this.db
+      const result = await (this.db as any)
         .insertInto(this.table)
         .values(this.getRawAttributes() as any)
         .returningAll()
@@ -472,6 +472,15 @@ export interface ModelConfig<DB, TB extends keyof DB & string> {
 
 export type DefaultPrimaryKey<DB, TB extends keyof DB & string> =
   Extract<"id", keyof DB[TB] & string> extends never ? keyof DB[TB] & string : Extract<"id", keyof DB[TB] & string>;
+
+/** Utility type to require that certain attributes have been selected when defining a function on a model. */
+export type RequiresSelected<
+  M extends { attributes: Record<string, unknown> },
+  K extends keyof M["attributes"] & string,
+> = Omit<M, "attributes" | (keyof M["attributes"] & string)> & {
+  attributes: Pick<M["attributes"], K> & Partial<Omit<M["attributes"], K>>;
+} & Pick<M["attributes"], K> &
+  Partial<Omit<M["attributes"], K>>;
 
 // Keys in the attributes config that have an explicit default.
 type DefaultedAttributeKeys<DA> = {
