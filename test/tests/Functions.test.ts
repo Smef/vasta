@@ -13,10 +13,12 @@ describe("Function Type Safety", () => {
 
     selectedPet.name = "New Name";
     // this should throw a type error because the primary key is not selected
-    // @ts-expect-error - primary key is not selected
-    await selectedPet.save();
-    // @ts-expect-error - primary key is not selected
-    await selectedPet.delete();
+    if (false) {
+      // @ts-expect-error - primary key is not selected
+      await selectedPet.save();
+      // @ts-expect-error - primary key is not selected
+      await selectedPet.delete();
+    }
 
     const goodSelectedPet = await Pet.select(["name", "id"]).where("name", pet.name).firstOrFail();
     goodSelectedPet.name = "New Name";
@@ -50,15 +52,17 @@ describe("Function Type Safety", () => {
     goodSelectedPet.incrementCounter();
   });
 
-  it("should show a type error when trying to call a function that requirs multiple columns that were not selected", async () => {
+  it("should show a type error when trying to call a function that requires multiple columns that were not selected", async () => {
     const pet = new Pet({ name: "toBeDeleted", type: "cat" });
     await pet.save();
     expect(pet.attributes.id).toBeDefined();
 
     let selectedPet = await Pet.select(["name"]).where("name", pet.name).firstOrFail();
 
-    // @ts-expect-error - id and counter are not selected
-    selectedPet.incrementAndSave();
+    if (false) {
+      // @ts-expect-error - id and counter are not selected
+      await selectedPet.incrementAndSave();
+    }
 
     const goodSelectedPet = await Pet.select(["counter", "id", "name"]).where("name", pet.name).firstOrFail();
     // it should not throw a type error because the counter is selected
