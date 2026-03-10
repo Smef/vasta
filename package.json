@@ -61,7 +61,6 @@
     "tsc-alias": "^1.8.16",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.57.0",
-    "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^1.6.1"
   },
   "peerDependencies": {
