@@ -1,10 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Expression, ExpressionBuilder, ComparisonOperatorExpression } from "kysely";
-import { Builder, ExtractDB, ExtractTB, Selection, ExtractSelection } from "@src/model/Builder";
-import type { Model } from "@src/model/Model";
+import { Builder, ExtractDB, ExtractTB, Selection, ExtractSelection, AnyModelConstructor } from "./Builder.js";
 
-export type AnyModelConstructor = abstract new (...args: any[]) => Model<any, any, any>;
+export { AnyModelConstructor };
 export type PrimaryKeyValue<T extends AnyModelConstructor> =
   InstanceType<T>["attributes"][InstanceType<T>["primaryKey"]];
 

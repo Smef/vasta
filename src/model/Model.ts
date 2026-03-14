@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Insertable, Kysely, Selectable, Updateable } from "kysely";
-import { RelationBuilder } from "@src/model/Builder";
-import { StaticForwarder, type AnyModelConstructor } from "@src/model/StaticForwarder";
+import { RelationBuilder, AnyModelConstructor } from "./Builder.js";
+import { StaticForwarder } from "./StaticForwarder.js";
 import { getCallerMethodName } from "@src/util/caller";
 
 export type ModelLifecycleEventName =

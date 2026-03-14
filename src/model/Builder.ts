@@ -1,7 +1,21 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Kysely, Expression, ExpressionBuilder, AliasedExpression, ComparisonOperatorExpression } from "kysely";
 import { Model } from "@src/model/Model";
-export type AnyModelConstructor = abstract new (...args: any[]) => Model<any, any, any>;
+
+export type Bivariant<T> = {
+  [K in keyof T]: T[K] extends (...args: infer A) => infer R
+    ? { bivarianceHack(...args: A): R }["bivarianceHack"]
+    : T[K];
+};
+
+export type AnyModelConstructor = abstract new (...args: any[]) => Bivariant<Model<any, any, any>>;
+
+export interface ModelLike {
+  db: Kysely<any>;
+  table: string;
+  attributes: Record<string, any>;
+  primaryKey: string;
+}
 
 export type RelationMetadata = {
   type: "hasMany" | "belongsTo" | "hasOne" | "belongsToMany";
@@ -14,7 +28,7 @@ export type RelationMetadata = {
   relatedPivotKey?: string;
 };
 
-export type SelectedModel<M extends Model<any, any, any>, S extends keyof M["attributes"] | string = never> =
+export type SelectedModel<M extends ModelLike, S extends keyof M["attributes"] | string = never> =
   // If no columns were explicitly selected, return the full model untouched.
   [S] extends [never]
     ? M
@@ -26,7 +40,7 @@ export type SelectedModel<M extends Model<any, any, any>, S extends keyof M["att
               save: never;
               delete: never;
             }
-          : Pick<M, "save" | "delete">) &
+          : Pick<M, keyof M & ("save" | "delete")>) &
         // Restore the attributes object, containing ONLY the selected keys
         {
           attributes: Pick<M["attributes"], S & keyof M["attributes"]> & Record<Exclude<S, keyof M["attributes"]>, any>;
@@ -50,16 +64,16 @@ type JoinConstraint = {
   col2: string;
 };
 
-export type ExtractDB<M> = M extends Model<infer D, any> ? D : never;
-export type ExtractTB<M> = M extends Model<any, infer T> ? T : never;
+export type ExtractDB<M> = M extends { db: Kysely<infer D> } ? D : never;
+export type ExtractTB<M> = M extends { table: infer T } ? T : never;
 
-export type Selection<M extends Model<any, any>> =
+export type Selection<M extends ModelLike> =
   | (keyof M["attributes"] & string)
   | Expression<unknown>
   | AliasedExpression<any, any>;
 
 export type ExtractSelection<T> = T extends string ? T : T extends AliasedExpression<any, infer A> ? A : never;
-export type PrimaryKeyValue<M extends Model<any, any, any>> = M["attributes"][M["primaryKey"]];
+export type PrimaryKeyValue<M extends ModelLike> = M["attributes"][M["primaryKey"]];
 
 export type RelationKeys<M> = {
   [K in keyof M]-?: M[K] extends RelationBuilder<any, any> ? K : never;
@@ -69,7 +83,7 @@ export type WithConstraints<M> = {
   [K in RelationKeys<M>]?: M[K] extends RelationBuilder<infer RM, any> ? (query: Builder<RM>) => void : never;
 };
 
-export class Builder<M extends Model<any, any>, S extends keyof M["attributes"] | string = never> {
+export class Builder<M extends ModelLike, S extends keyof M["attributes"] | string = never> {
   protected constraints: Constraint[] = [];
   protected joinConstraints: JoinConstraint[] = [];
   protected selectedColumns: (
@@ -554,7 +568,7 @@ export default Builder;
  * A specialized Builder that acts as a Promise.
  * If awaited directly, it executes the query and caches the result.
  */
-export class RelationBuilder<M extends Model<any, any>, R> extends Builder<M> implements PromiseLike<R> {
+export class RelationBuilder<M extends ModelLike, R> extends Builder<M> implements PromiseLike<R> {
   protected initialConstraintsCount = 0;
   protected initialSelectedColumnsCount = 0;
 
