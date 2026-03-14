@@ -9,9 +9,7 @@
     "outDir": "dist/esm",
     "baseUrl": ".",
     "paths": {
-      "@src/*": ["./src/*"],
-      "@test/*": ["./test/*"],
-      "vasta-orm": ["./src/index.ts"]
+      "@src/*": ["./src/*"]
     }
   },
   "include": ["src/**/*"],

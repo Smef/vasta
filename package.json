@@ -1,6 +1,6 @@
 {
   "name": "vasta-orm",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Active record ORM built on top of Kysely",
   "type": "module",
   "author": "David Nahodyl <david.nahodyl@gmail.com>",
@@ -50,11 +50,11 @@
   "types": "dist/esm/index.d.ts",
   "devDependencies": {
     "@eslint/js": "^9.39.4",
-    "@types/node": "^25.4.0",
+    "@types/node": "^25.5.0",
     "@types/pg": "^8.18.0",
     "eslint": "^9.39.4",
     "eslint-config-prettier": "^9.1.2",
-    "kysely": "^0.28.11",
+    "kysely": "^0.28.12",
     "kysely-ctl": "^0.20.0",
     "pg": "^8.20.0",
     "prettier": "^3.8.1",

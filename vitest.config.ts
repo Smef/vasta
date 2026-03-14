@@ -6,11 +6,15 @@ export default defineConfig({
   test: {
     dir: "./test/tests",
     include: ["./**/*.ts"],
+    typecheck: {
+      tsconfig: "./test/tsconfig.json",
+    },
   },
   resolve: {
     alias: {
       "@src": resolve(__dirname, "src"),
       "@": resolve(__dirname, "test"),
+      "vasta-orm": resolve(__dirname, "src/index.ts"),
     },
   },
 });
