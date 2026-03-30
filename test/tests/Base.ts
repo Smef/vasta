@@ -602,6 +602,71 @@ describe("delete", () => {
   });
 });
 
+describe("destroy", () => {
+  it("should destroy a record by id", async () => {
+    const pet = new Pet({ name: "Destroy Me", type: "dog", counter: 1 });
+    await pet.save();
+
+    const id = pet.attributes.id;
+
+    const savedPet = await Pet.findOrFail(id);
+    expect(savedPet.attributes.id).toBe(id);
+
+    const count = await Pet.destroy(id);
+    expect(count).toBe(1);
+
+    const deletedPet = await Pet.find(id);
+    expect(deletedPet).toBeUndefined();
+  });
+
+  it("should destroy multiple records by id", async () => {
+    const pet1 = new Pet({ name: "Destroy Me 1", type: "dog", counter: 1 });
+    await pet1.save();
+    const pet2 = new Pet({ name: "Destroy Me 2", type: "dog", counter: 1 });
+    await pet2.save();
+
+    const id1 = pet1.attributes.id;
+    const id2 = pet2.attributes.id;
+
+    const count = await Pet.destroy([id1, id2]);
+    expect(count).toBe(2);
+
+    const deletedPets = await Pet.find([id1, id2]);
+    expect(deletedPets).toHaveLength(0);
+  });
+
+  it("should return 0 when destroying non-existent records", async () => {
+    const count = await Pet.destroy(99999);
+    expect(count).toBe(0);
+  });
+
+  it("should enforce primary key typing for destroy", () => {
+    if (false) {
+      void Pet.destroy(1);
+      void Pet.destroy([1, 2]);
+
+      // @ts-expect-error - Pet primary key is numeric
+      void Pet.destroy("1");
+      // @ts-expect-error - Pet primary key is numeric
+      void Pet.destroy(["1", "2"]);
+
+      class PetByName extends defineModel({
+        db,
+        table: "pets",
+        primaryKey: "name",
+      }) {}
+
+      void PetByName.destroy("Zuko");
+      void PetByName.destroy(["Zuko", "Yoshi"]);
+
+      // @ts-expect-error - PetByName primary key is string
+      void PetByName.destroy(123);
+      // @ts-expect-error - PetByName primary key is string
+      void PetByName.destroy([1, 2]);
+    }
+  });
+});
+
 describe("lifecycle events", () => {
   function createEventedPetModel(eventNames: string[], payloadModels: unknown[]) {
     return class EventedPet extends defineModel({

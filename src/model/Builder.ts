@@ -560,6 +560,26 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
       return result;
     }
   }
+
+  /**
+   * Destroys one or more records by their primary key(s).
+   * Retrieves the models and calls delete() on each to ensure lifecycle events are fired.
+   * Returns the number of successfully deleted records.
+   */
+  async destroy(idOrIds: PrimaryKeyValue<M> | PrimaryKeyValue<M>[]): Promise<number> {
+    const ids = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
+    if (ids.length === 0) return 0;
+
+    const models = await this.find(ids);
+
+    let count = 0;
+    for (const model of models as M[]) {
+      const deleted = await (model as any).delete();
+      if (deleted) count++;
+    }
+
+    return count;
+  }
 }
 
 export default Builder;

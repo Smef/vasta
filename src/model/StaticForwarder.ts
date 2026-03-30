@@ -173,6 +173,13 @@ export abstract class StaticForwarder {
     return (this as any).query().findOrFail(idOrIds);
   }
 
+  static async destroy<T extends AnyModelConstructor>(
+    this: T,
+    idOrIds: PrimaryKeyValue<T> | PrimaryKeyValue<T>[],
+  ): Promise<number> {
+    return (this as any).query().destroy(idOrIds);
+  }
+
   static select<T extends AnyModelConstructor, const K extends Selection<InstanceType<T>>>(
     this: T,
     columns: K[] | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => K[]),
