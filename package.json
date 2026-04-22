@@ -46,15 +46,15 @@
     "db:seed": "kysely seed:run",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
-    "prettier:check": "prettier \"**/*.{js,ts,vue}\" --check",
-    "prettier:write": "prettier \"**/*.{js,ts,vue}\" --write"
+    "prettier:check": "prettier \"**/*.{js,ts,mjs,vue}\" --check",
+    "prettier:write": "prettier \"**/*.{js,ts,mjs,vue}\" --write"
   },
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
   "types": "dist/esm/index.d.ts",
   "devDependencies": {
     "@eslint/js": "^9.39.4",
-    "@types/node": "^25.6.0",
+    "@types/node": "^24.12.2",
     "@types/pg": "^8.20.0",
     "eslint": "^10.2.1",
     "eslint-config-prettier": "^9.1.2",
@@ -74,5 +74,5 @@
     "unimport": "5.6.0",
     "citty": "0.1.6"
   },
-  "packageManager": "pnpm@10"
+  "packageManager": "pnpm@10.33.1"
 }

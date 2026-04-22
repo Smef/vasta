@@ -8,7 +8,7 @@ export default defineConfig([
     ignores: ["dist/**/*", "docs/.nuxt/**", "docs/.data/**", "docs/.output/**"],
   },
   {
-    files: ["src/**/*.ts", "docs/**/*.{ts}"],
+    files: ["src/**/*.ts", "docs/**/*.{ts}", "test/**/*.{ts}"],
     extends: [js.configs.recommended, tseslint.configs.recommended, eslintConfigPrettier],
   },
 ]);
