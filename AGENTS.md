@@ -1,10 +1,11 @@
-# Copilot Instructions for `vasta`
+# Instructions for `vasta`
 
 ## Project context
 
 - This is a TypeScript codebase for an Laravel Eloquent-style model layer based on the Kysely query builder.
 - Source code lives under `src/`.
 - Tests and DB fixtures/migrations live under `test/`.
+- The goal is to create a great developer experience with strong typing and intellisense.
 
 ## Implementation guidelines
 
