@@ -121,7 +121,14 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
       ? M["attributes"][Column] | M["attributes"][Column][] | null | Expression<any>
       : any[] | any,
   ): this;
-  where(columnOrExpression: string | Expression<any> | Function, opOrVal?: any, value?: any): this {
+  where(
+    columnOrExpression:
+      | string
+      | Expression<any>
+      | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
+    opOrVal?: any,
+    value?: any,
+  ): this {
     if (value !== undefined) {
       this.constraints.push({ type: "where", column: columnOrExpression, operator: opOrVal, value });
     } else if (Array.isArray(opOrVal)) {
@@ -161,7 +168,10 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
     column: Expression<any> | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
     values: any[] | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>) | Expression<any>,
   ): this;
-  whereIn(column: string | Expression<any> | Function, values: any): this {
+  whereIn(
+    column: string | Expression<any> | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
+    values: any,
+  ): this {
     this.constraints.push({ type: "whereIn", column, values: values as any });
     return this;
   }
