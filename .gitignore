@@ -21,3 +21,6 @@ node_modules
 
 # packed file
 *.tgz
+
+# AI files
+.claude
