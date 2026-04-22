@@ -5,7 +5,7 @@
 - This is a TypeScript codebase for an Laravel Eloquent-style model layer based on the Kysely query builder.
 - Source code lives under `src/`.
 - Tests and DB fixtures/migrations live under `test/`.
-- The goal is to create a great developer experience with strong typing and intellisense.
+- The goal is to create a great developer experience with strong typing and IntelliSense.
 
 ## Implementation guidelines
 
