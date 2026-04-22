@@ -667,6 +667,81 @@ describe("destroy", () => {
   });
 });
 
+describe("create", () => {
+  it("should insert a new record and return the saved model", async () => {
+    const pet = await Pet.create({ name: "Rex", type: "dog", counter: 1 });
+
+    expect(pet).toBeInstanceOf(Pet);
+    expect(pet.attributes.id).toBeGreaterThan(0);
+    expect(pet.attributes.name).toBe("Rex");
+    expect(pet.attributes.type).toBe("dog");
+    expect(pet.attributes.counter).toBe(1);
+    expect(pet.exists).toBe(true);
+    expect(pet.isDirty()).toBe(false);
+
+    const fetched = await Pet.findOrFail(pet.attributes.id);
+    expect(fetched.attributes.name).toBe("Rex");
+
+    await pet.delete();
+  });
+
+  it("should apply default attributes", async () => {
+    const pet = await Pet.create({ name: "Defaulted", type: "cat" });
+
+    expect(pet.attributes.counter).toBe(0);
+
+    await pet.delete();
+  });
+
+  it("should apply mutators from the attributes config", async () => {
+    const pet = await SuperPet.create({ name: "shouty", type: "dog" });
+
+    expect(pet.attributes.name).toBe("SHOUTY");
+
+    await pet.delete();
+  });
+
+  it("should dispatch creating/created and saving/saved events", async () => {
+    const eventNames: string[] = [];
+
+    class EventedPet extends defineModel({
+      db,
+      table: "pets",
+      attributes: {
+        counter: { default: 0 },
+      },
+      events: {
+        saving: () => void eventNames.push("saving"),
+        creating: () => void eventNames.push("creating"),
+        created: () => void eventNames.push("created"),
+        saved: () => void eventNames.push("saved"),
+      },
+    }) {}
+
+    const pet = await EventedPet.create({ name: "Evented", type: "cat" });
+
+    expect(eventNames).toEqual(["saving", "creating", "created", "saved"]);
+
+    await pet.delete();
+  });
+
+  it("should enforce type safety on attributes", () => {
+    if (false) {
+      void Pet.create({ name: "Fluffy", type: "cat" });
+      void Pet.create({ name: "Fluffy", type: "cat", counter: 2 });
+
+      // @ts-expect-error - type is required
+      void Pet.create({ name: "Fluffy" });
+
+      // @ts-expect-error - name must be a string
+      void Pet.create({ name: 123, type: "cat" });
+
+      // @ts-expect-error - unknown attribute
+      void Pet.create({ name: "Fluffy", type: "cat", invalidAttribute: "oops" });
+    }
+  });
+});
+
 describe("lifecycle events", () => {
   function createEventedPetModel(eventNames: string[], payloadModels: unknown[]) {
     return class EventedPet extends defineModel({
