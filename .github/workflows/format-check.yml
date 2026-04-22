@@ -30,4 +30,5 @@ jobs:
         run: pnpm lint
 
       - name: Run Prettier
+        if: always()
         run: pnpm prettier:check
