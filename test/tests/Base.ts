@@ -423,6 +423,65 @@ describe("query", () => {
   });
 });
 
+describe("get and all", () => {
+  it("should return all records when get() is called directly on the model class", async () => {
+    const allPets = await Pet.query().get();
+    const pets = await Pet.get();
+
+    expect(pets).toHaveLength(allPets.length);
+    expect(pets[0]).toBeInstanceOf(Pet);
+    expect(pets.map((pet) => pet.attributes.id).sort()).toEqual(allPets.map((pet) => pet.attributes.id).sort());
+  });
+
+  it("should return all records when all() is called directly on the model class", async () => {
+    const allPets = await Pet.query().get();
+    const pets = await Pet.all();
+
+    expect(pets).toHaveLength(allPets.length);
+    expect(pets[0]).toBeInstanceOf(Pet);
+    expect(pets.map((pet) => pet.attributes.id).sort()).toEqual(allPets.map((pet) => pet.attributes.id).sort());
+  });
+
+  it("should infer the correct return type for get() and all()", async () => {
+    const getResult = await Pet.get();
+    const allResult = await Pet.all();
+
+    // Type-level: instances must expose full Pet attributes
+    expect(typeof getResult[0].attributes.name).toBe("string");
+    expect(typeof getResult[0].attributes.counter).toBe("number");
+    expect(typeof allResult[0].attributes.id).toBe("number");
+
+    // @ts-expect-error - not a column on the pets table
+    void getResult[0].attributes.nonexistent;
+    // @ts-expect-error - not a column on the pets table
+    void allResult[0].attributes.nonexistent;
+  });
+
+  it("should chain select() with get() and narrow the result type to the selected columns", async () => {
+    const pets = await Pet.select(["name", "id"]).orderBy("id", "asc").get();
+
+    expect(pets.length).toBeGreaterThan(0);
+    expect(typeof pets[0].attributes.name).toBe("string");
+    expect(typeof pets[0].attributes.id).toBe("number");
+
+    // @ts-expect-error - counter was not selected
+    void pets[0].attributes.counter;
+    // @ts-expect-error - type was not selected
+    void pets[0].attributes.type;
+  });
+
+  it("should chain orderBy() with get() and return results in the requested order", async () => {
+    const asc = await Pet.orderBy("id", "asc").get();
+    const desc = await Pet.orderBy("id", "desc").get();
+
+    expect(asc.length).toBeGreaterThan(1);
+    expect(asc.length).toBe(desc.length);
+    expect(asc[0].attributes.id).toBeLessThan(asc[asc.length - 1].attributes.id);
+    expect(desc[0].attributes.id).toBeGreaterThan(desc[desc.length - 1].attributes.id);
+    expect(asc[0].attributes.id).toBe(desc[desc.length - 1].attributes.id);
+  });
+});
+
 describe("limit and offset", () => {
   it("should limit the number of results", async () => {
     const pets = await Pet.limit(1).get();
