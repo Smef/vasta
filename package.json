@@ -54,25 +54,25 @@
   "types": "dist/esm/index.d.ts",
   "devDependencies": {
     "@eslint/js": "^9.39.4",
-    "@types/node": "^24.12.2",
+    "@types/node": "^24.12.4",
     "@types/pg": "^8.20.0",
-    "eslint": "^10.2.1",
+    "eslint": "^10.3.0",
     "eslint-config-prettier": "^9.1.2",
-    "kysely": "^0.28.16",
-    "kysely-ctl": "^0.20.0",
+    "kysely": "^0.29.0",
+    "kysely-ctl": "^0.21.0",
     "pg": "^8.20.0",
     "prettier": "^3.8.3",
-    "tsc-alias": "^1.8.16",
+    "tsc-alias": "^1.8.17",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.59.0",
+    "typescript-eslint": "^8.59.3",
     "vitest": "^1.6.1"
   },
   "peerDependencies": {
-    "kysely": "^0.28.11"
+    "kysely": "^0.29.0"
   },
   "resolutions": {
     "unimport": "5.6.0",
     "citty": "0.1.6"
   },
-  "packageManager": "pnpm@10.33.1"
+  "packageManager": "pnpm@11.1.2"
 }
