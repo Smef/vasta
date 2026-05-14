@@ -105,6 +105,14 @@ export abstract class StaticForwarder {
     return (this as any).query().orderBy(column, direction);
   }
 
+  static async get<T extends AnyModelConstructor>(this: T): Promise<InstanceType<T>[]> {
+    return (this as any).query().get();
+  }
+
+  static async all<T extends AnyModelConstructor>(this: T): Promise<InstanceType<T>[]> {
+    return (this as any).query().get();
+  }
+
   static async first<T extends AnyModelConstructor>(this: T): Promise<InstanceType<T> | undefined> {
     return (this as any).query().first();
   }
