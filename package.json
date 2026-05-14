@@ -1,6 +1,6 @@
 {
   "name": "vasta-orm",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "description": "Active record ORM built on top of Kysely",
   "type": "module",
   "author": "David Nahodyl <david.nahodyl@gmail.com>",
@@ -48,7 +48,8 @@
     "lint:fix": "eslint --fix",
     "prettier:check": "prettier \"**/*.{js,ts,mjs,vue}\" --check",
     "prettier:write": "prettier \"**/*.{js,ts,mjs,vue}\" --write",
-    "format": "pnpm run prettier:write && pnpm run lint:fix"
+    "format": "pnpm run prettier:write && pnpm run lint:fix",
+    "publish": "pnpm run build && npm publish --access public"
   },
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
