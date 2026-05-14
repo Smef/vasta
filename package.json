@@ -47,7 +47,8 @@
     "lint": "eslint",
     "lint:fix": "eslint --fix",
     "prettier:check": "prettier \"**/*.{js,ts,mjs,vue}\" --check",
-    "prettier:write": "prettier \"**/*.{js,ts,mjs,vue}\" --write"
+    "prettier:write": "prettier \"**/*.{js,ts,mjs,vue}\" --write",
+    "format": "pnpm run prettier:write && pnpm run lint:fix"
   },
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
