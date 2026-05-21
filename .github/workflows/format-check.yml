@@ -8,7 +8,7 @@ on:
 
 jobs:
   format-check:
-    name: ESLint & Prettier
+    name: Format Checks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -29,6 +29,6 @@ jobs:
       - name: Run ESLint
         run: pnpm lint
 
-      - name: Run Prettier
+      - name: Run Oxfmt
         if: always()
-        run: pnpm prettier:check
+        run: pnpm fmt:check

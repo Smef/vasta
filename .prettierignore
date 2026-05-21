@@ -1,5 +1,0 @@
-# ignore index.md since it's using MDC and prettier messes that up
-docs/content/index.md
-docs/.nuxt
-docs/.data
-docs/.output

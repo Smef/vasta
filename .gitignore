@@ -8,7 +8,8 @@ node_modules
 .DS_Store
 .fleet
 .idea
-.vscode
+.vscode/*
+!.vscode/extensions.json
 
 # Cache files
 *.tsbuildinfo
