@@ -10,7 +10,6 @@ Vasta is a type-safe Object Relational Mapper (ORM) layer for [Kysely](https://k
 
 Vasta provides an [active record pattern](https://en.wikipedia.org/wiki/Active_record_pattern) interface for querying and manipulating your data, making it easy to work with your database in a model-instance oriented way. You can define your models with attributes, relationships, methods, and more. You can use these model properties to perform actions directly on your models before easily saving those changes to the database.
 
-
 ```js
 const pet = await Pet.findOrFail(1);
 pet.name = "Fluffy";
