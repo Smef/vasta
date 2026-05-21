@@ -2,5 +2,10 @@
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "printWidth": 120,
   "sortPackageJson": false,
-  "ignorePatterns": ["docs/content/index.md", "docs/.nuxt", "docs/.data", "docs/.output"]
+  "ignorePatterns": ["docs/content/index.md", "docs/.nuxt", "docs/.data", "docs/.output"],
+  "sortTailwindcss": {
+    "stylesheet": "docs/assets/css/main.css",
+    "functions": ["clsx", "cn"],
+    "preserveWhitespace": true
+  }
 }
