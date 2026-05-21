@@ -1,12 +1,13 @@
 {
   "name": "vasta-orm",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "description": "Active record ORM built on top of Kysely",
   "type": "module",
   "author": "David Nahodyl <david.nahodyl@gmail.com>",
   "license": "MIT",
   "files": [
-    "dist"
+    "dist",
+    "src"
   ],
   "repository": {
     "type": "git",
@@ -24,10 +25,14 @@
   ],
   "exports": {
     ".": {
-      "types": "./dist/esm/index.d.ts",
-      "import": "./dist/esm/index.js",
-      "require": "./dist/cjs/index.js",
-      "default": "./dist/cjs/index.js"
+      "import": {
+        "types": "./src/index.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./src/index.ts",
+        "default": "./dist/cjs/index.js"
+      }
     }
   },
   "scripts": {
@@ -53,7 +58,7 @@
   },
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
-  "types": "dist/esm/index.d.ts",
+  "types": "src/index.ts",
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@types/node": "^24.12.4",

@@ -3,7 +3,7 @@
 import { Insertable, Kysely, Selectable, Updateable } from "kysely";
 import { RelationBuilder, AnyModelConstructor } from "./Builder.js";
 import { StaticForwarder } from "./StaticForwarder.js";
-import { getCallerMethodName } from "@src/util/caller";
+import { getCallerMethodName } from "../util/caller.js";
 
 export type ModelLifecycleEventName =
   | "creating"
