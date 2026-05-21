@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Kysely, Expression, ExpressionBuilder, AliasedExpression, ComparisonOperatorExpression } from "kysely";
-import { Model } from "@src/model/Model";
+import { Model } from "./Model.js";
 
 export type Bivariant<T> = {
   [K in keyof T]: T[K] extends (...args: infer A) => infer R
