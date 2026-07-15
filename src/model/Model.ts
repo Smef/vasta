@@ -487,6 +487,42 @@ type DefaultedAttributeKeys<DA> = {
   [K in keyof DA]: DA[K] extends { default: any } ? K : never;
 }[keyof DA];
 
+/**
+ * The class returned by defineModel: an abstract constructor producing instances that are
+ * the Model API merged with the row's selected attributes, plus every static query method
+ * inherited from Model / StaticForwarder.
+ *
+ * This must stay an explicit named type. If defineModel's return type is left to inference,
+ * declaration emit serializes the anonymous class structurally, which produces
+ * non-portable deep imports into kysely/dist and collapses self-referencing methods
+ * (save, assign, ...) to `any` in the published .d.ts.
+ */
+export type ModelClass<
+  DB,
+  TB extends keyof DB & string,
+  PK extends keyof DB[TB] & string,
+  DefaultedInsertable = Record<never, never>,
+> = (abstract new (
+  attributes: ModelConstructorArgs<Insertable<DB[TB]>, DefaultedInsertable>,
+) => DefinedModel<DB, TB, PK> & Selectable<DB[TB]>) & {
+  [K in keyof typeof Model]: (typeof Model)[K];
+};
+
+/**
+ * Instance side of a class produced by defineModel. Redeclares the abstract members
+ * (db, table, primaryKey) as concrete because defineModel's config implements them —
+ * subclasses of the returned class must not be forced to re-implement them.
+ */
+export interface DefinedModel<DB, TB extends keyof DB & string, PK extends keyof DB[TB] & string> extends Model<
+  DB,
+  TB,
+  PK
+> {
+  db: Kysely<DB>;
+  table: TB;
+  primaryKey: PK;
+}
+
 export function defineModel<
   DB,
   TB extends keyof DB & string,
@@ -503,7 +539,7 @@ export function defineModel<
      */
     attributes?: ModelAttributesConfig<Model<DB, TB, PK>, Selectable<DB[TB]>> & DA;
   },
-) {
+): ModelClass<DB, TB, PK, Pick<Insertable<DB[TB]>, Extract<DefaultedAttributeKeys<DA>, keyof Insertable<DB[TB]>>>> {
   // Derive the subset of Insertable<DB[TB]> that have defaults defined in DA.
   type DefaultedInsertableKeys = Extract<DefaultedAttributeKeys<DA>, keyof Insertable<DB[TB]>>;
   type DefaultedInsertable = Pick<Insertable<DB[TB]>, DefaultedInsertableKeys>;
@@ -582,9 +618,5 @@ export function defineModel<
     }
   }
 
-  return BaseModel as unknown as (abstract new (
-    attributes: ModelConstructorArgs<Insertable<DB[TB]>, DefaultedInsertable>,
-  ) => BaseModel & Selectable<DB[TB]>) & {
-    [K in keyof typeof BaseModel]: (typeof BaseModel)[K];
-  };
+  return BaseModel as unknown as ModelClass<DB, TB, PK, DefaultedInsertable>;
 }

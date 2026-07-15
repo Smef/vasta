@@ -25,14 +25,8 @@
   ],
   "exports": {
     ".": {
-      "import": {
-        "types": "./src/index.ts",
-        "default": "./dist/esm/index.js"
-      },
-      "require": {
-        "types": "./src/index.ts",
-        "default": "./dist/cjs/index.js"
-      }
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     }
   },
   "scripts": {
@@ -42,9 +36,7 @@
     "test:reset": "pnpm run db:reset && vitest run",
     "test:watch": "vitest --typecheck",
     "clean": "rm -rf dist/*",
-    "build": "pnpm run clean && (npm run build:esm & npm run build:cjs)",
-    "build:esm": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json --resolve-full-paths --resolve-full-extension .js",
-    "build:cjs": "tsc -p tsconfig.cjs.json && tsc-alias -p tsconfig.cjs.json",
+    "build": "pnpm run clean && tsc -p tsconfig.json && tsc-alias -p tsconfig.json --resolve-full-paths --resolve-full-extension .js",
     "generate:docs": "cd docs && pnpm run generate",
     "db:reset": "kysely migrate:rollback --all && kysely migrate:latest && kysely seed:run",
     "db:migrate": "kysely migrate:latest",
@@ -56,9 +48,8 @@
     "format": "pnpm run fmt && pnpm run lint:fix",
     "publish": "pnpm run build && npm publish --access public"
   },
-  "main": "dist/cjs/index.js",
-  "module": "dist/esm/index.js",
-  "types": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@types/node": "^24.12.4",
