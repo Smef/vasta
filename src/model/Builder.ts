@@ -28,6 +28,10 @@ export type RelationMetadata = {
   relatedPivotKey?: string;
 };
 
+/** The attributes visible after a select(): known columns keep their types, computed selections are `any`. */
+type SelectedAttributes<M extends ModelLike, S extends PropertyKey> = Pick<M["attributes"], S & keyof M["attributes"]> &
+  Record<Exclude<S, keyof M["attributes"]>, any>;
+
 export type SelectedModel<M extends ModelLike, S extends keyof M["attributes"] | string = never> =
   // If no columns were explicitly selected, return the full model untouched.
   [S] extends [never]
@@ -41,13 +45,8 @@ export type SelectedModel<M extends ModelLike, S extends keyof M["attributes"] |
               delete: never;
             }
           : Pick<M, keyof M & ("save" | "delete")>) &
-        // Restore the attributes object, containing ONLY the selected keys
-        {
-          attributes: Pick<M["attributes"], S & keyof M["attributes"]> & Record<Exclude<S, keyof M["attributes"]>, any>;
-        } &
-        // Restore the dynamic top-level accessors, containing ONLY the selected keys
-        Pick<M["attributes"], S & keyof M["attributes"]> &
-        Record<Exclude<S, keyof M["attributes"]>, any>;
+        // Restore the attributes object and the dynamic top-level accessors, containing ONLY the selected keys
+        { attributes: SelectedAttributes<M, S> } & SelectedAttributes<M, S>;
 
 // Define the shape of our constraints
 type Constraint =
@@ -66,6 +65,25 @@ type JoinConstraint = {
 
 export type ExtractDB<M> = M extends { db: Kysely<infer D> } ? D : never;
 export type ExtractTB<M> = M extends { table: infer T } ? T : never;
+
+/** The Kysely expression builder scoped to this model's database and table. */
+export type ModelExpressionBuilder<M extends ModelLike> = ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>;
+
+/** A raw Kysely expression, or a callback that builds one. Accepted anywhere a dynamic expression is allowed. */
+export type ExpressionArg<M extends ModelLike> = Expression<any> | ((eb: ModelExpressionBuilder<M>) => Expression<any>);
+
+/** A typed column name, or any expression accepted where a column can appear. */
+export type ColumnArg<M extends ModelLike> = (keyof M["attributes"] & string) | ExpressionArg<M>;
+
+/** The value for `where(column, operator, value)`: typed when the column is a known attribute. */
+export type WhereValue<M extends ModelLike, C> = C extends keyof M["attributes"] & string
+  ? M["attributes"][C] | null | Expression<any>
+  : any;
+
+/** The value for the two-argument `where(column, value)` shorthand; an array means `in`. */
+export type WhereShorthandValue<M extends ModelLike, C> = C extends keyof M["attributes"] & string
+  ? M["attributes"][C] | M["attributes"][C][] | null | Expression<any>
+  : any[] | any;
 
 export type Selection<M extends ModelLike> =
   | (keyof M["attributes"] & string)
@@ -99,36 +117,14 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
   protected orderings: { column: any; direction: "asc" | "desc" }[] = [];
 
   constructor(protected modelConstructor: AnyModelConstructor) {}
-  where(expression: Expression<any> | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>)): this;
-  where<
-    Column extends
-      | (keyof M["attributes"] & string)
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
-  >(
+  where(expression: ExpressionArg<M>): this;
+  where<Column extends ColumnArg<M>>(
     column: Column,
     operator: ComparisonOperatorExpression,
-    value: Column extends keyof M["attributes"] & string ? M["attributes"][Column] | null | Expression<any> : any,
+    value: WhereValue<M, Column>,
   ): this;
-  where<
-    Column extends
-      | (keyof M["attributes"] & string)
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
-  >(
-    column: Column,
-    value: Column extends keyof M["attributes"] & string
-      ? M["attributes"][Column] | M["attributes"][Column][] | null | Expression<any>
-      : any[] | any,
-  ): this;
-  where(
-    columnOrExpression:
-      | string
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
-    opOrVal?: any,
-    value?: any,
-  ): this {
+  where<Column extends ColumnArg<M>>(column: Column, value: WhereShorthandValue<M, Column>): this;
+  where(columnOrExpression: string | ExpressionArg<M>, opOrVal?: any, value?: any): this {
     if (value !== undefined) {
       this.constraints.push({ type: "where", column: columnOrExpression, operator: opOrVal, value });
     } else if (Array.isArray(opOrVal)) {
@@ -146,42 +142,22 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
     return this;
   }
 
-  orderBy(
-    column:
-      | (keyof M["attributes"] & string)
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
-    direction: "asc" | "desc" = "asc",
-  ): this {
+  orderBy(column: ColumnArg<M>, direction: "asc" | "desc" = "asc"): this {
     this.orderings.push({ column, direction });
     return this;
   }
 
   whereIn<Column extends keyof M["attributes"] & string>(
     column: Column,
-    values:
-      | M["attributes"][Column][]
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
+    values: M["attributes"][Column][] | ExpressionArg<M>,
   ): this;
-  whereIn(
-    column: Expression<any> | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
-    values: any[] | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>) | Expression<any>,
-  ): this;
-  whereIn(
-    column: string | Expression<any> | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
-    values: any,
-  ): this {
+  whereIn(column: ExpressionArg<M>, values: any[] | ExpressionArg<M>): this;
+  whereIn(column: string | ExpressionArg<M>, values: any): this {
     this.constraints.push({ type: "whereIn", column, values: values as any });
     return this;
   }
 
-  whereNotNull(
-    column:
-      | (keyof M["attributes"] & string)
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => Expression<any>),
-  ): this {
+  whereNotNull(column: ColumnArg<M>): this {
     this.constraints.push({ type: "whereNotNull", column });
     return this;
   }
@@ -205,7 +181,7 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
    * Specify which columns to fetch from the database.
    */
   select<const K extends Selection<M>>(
-    columns: K[] | ((eb: ExpressionBuilder<ExtractDB<M>, ExtractTB<M>>) => K[]),
+    columns: K[] | ((eb: ModelExpressionBuilder<M>) => K[]),
   ): Builder<M, S | ExtractSelection<K>> {
     if (typeof columns === "function") {
       this.selectedColumns.push(columns);
@@ -309,12 +285,26 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
     }
   }
 
-  // ... existing where() and find() methods ...
+  /** Instantiates a throwaway model to read its configuration (db, table, primaryKey). */
+  protected modelMeta(): { db: Kysely<any>; table: string; primaryKey: string } {
+    const dummy = new (this.modelConstructor as any)({});
+    return { db: dummy.db, table: dummy.table, primaryKey: dummy.primaryKey };
+  }
+
+  /** Applies all accumulated where-constraints to a Kysely select query. */
+  protected applyConstraints(query: any): any {
+    for (const c of this.constraints) {
+      if (c.type === "where") query = query.where(c.column, c.operator as any, c.value);
+      else if (c.type === "whereIn") query = query.where(c.column, "in", c.values);
+      else if (c.type === "whereNull") query = query.where(c.column, "is", null);
+      else if (c.type === "whereNotNull") query = query.where(c.column, "is not", null);
+      else if (c.type === "whereExpression") query = query.where(c.expression as any);
+    }
+    return query;
+  }
 
   private compileQuery() {
-    const dummy = new (this.modelConstructor as any)({});
-    const db = dummy.db as Kysely<any>;
-    const table = dummy.table as string;
+    const { db, table } = this.modelMeta();
 
     // Start the query
     let query = db.selectFrom(table);
@@ -347,14 +337,7 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
       query = query.selectAll() as any;
     }
 
-    // Apply all constraints
-    for (const c of this.constraints) {
-      if (c.type === "where") query = query.where(c.column, c.operator as any, c.value);
-      else if (c.type === "whereIn") query = query.where(c.column, "in", c.values);
-      else if (c.type === "whereNull") query = query.where(c.column, "is", null);
-      else if (c.type === "whereNotNull") query = query.where(c.column, "is not", null);
-      else if (c.type === "whereExpression") query = query.where(c.expression as any);
-    }
+    query = this.applyConstraints(query);
 
     for (const order of this.orderings) {
       query = query.orderBy(order.column as any, order.direction) as any;
@@ -414,61 +397,25 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
     return result;
   }
 
-  async count(): Promise<number> {
-    const dummy = new (this.modelConstructor as any)({});
-    const db = dummy.db as Kysely<any>;
-    const table = dummy.table as string;
-
-    let query = db.selectFrom(table).select((eb) => eb.fn.countAll().as("count"));
-
-    for (const c of this.constraints) {
-      if (c.type === "where") query = query.where(c.column, c.operator as any, c.value);
-      else if (c.type === "whereIn") query = query.where(c.column, "in", c.values);
-      else if (c.type === "whereNull") query = query.where(c.column, "is", null);
-      else if (c.type === "whereNotNull") query = query.where(c.column, "is not", null);
-      else if (c.type === "whereExpression") query = query.where(c.expression as any);
-    }
-
+  /** Runs a single-value aggregate (count, sum, max, ...) with the accumulated constraints applied. */
+  private async aggregate(select: (eb: ExpressionBuilder<any, any>) => any): Promise<unknown> {
+    const { db, table } = this.modelMeta();
+    const query = this.applyConstraints(db.selectFrom(table).select((eb: any) => select(eb).as("value")));
     const result = await query.executeTakeFirst();
-    return Number(result?.count || 0);
+    return result?.value;
+  }
+
+  async count(): Promise<number> {
+    return Number((await this.aggregate((eb) => eb.fn.countAll())) || 0);
   }
 
   async sum(column: keyof M["attributes"] & string): Promise<number> {
-    const dummy = new (this.modelConstructor as any)({});
-    const db = dummy.db as Kysely<any>;
-    const table = dummy.table as string;
-
-    let query = db.selectFrom(table).select((eb) => eb.fn.sum(column).as("sum"));
-
-    for (const c of this.constraints) {
-      if (c.type === "where") query = query.where(c.column, c.operator as any, c.value);
-      else if (c.type === "whereIn") query = query.where(c.column, "in", c.values);
-      else if (c.type === "whereNull") query = query.where(c.column, "is", null);
-      else if (c.type === "whereNotNull") query = query.where(c.column, "is not", null);
-      else if (c.type === "whereExpression") query = query.where(c.expression as any);
-    }
-
-    const result = await query.executeTakeFirst();
-    return Number(result?.sum || 0);
+    return Number((await this.aggregate((eb) => eb.fn.sum(column))) || 0);
   }
 
   async max(column: keyof M["attributes"] & string): Promise<number | null> {
-    const dummy = new (this.modelConstructor as any)({});
-    const db = dummy.db as Kysely<any>;
-    const table = dummy.table as string;
-
-    let query = db.selectFrom(table).select((eb) => eb.fn.max(column).as("max"));
-
-    for (const c of this.constraints) {
-      if (c.type === "where") query = query.where(c.column, c.operator as any, c.value);
-      else if (c.type === "whereIn") query = query.where(c.column, "in", c.values);
-      else if (c.type === "whereNull") query = query.where(c.column, "is", null);
-      else if (c.type === "whereNotNull") query = query.where(c.column, "is not", null);
-      else if (c.type === "whereExpression") query = query.where(c.expression as any);
-    }
-
-    const result = await query.executeTakeFirst();
-    return result?.max !== null && result?.max !== undefined ? Number(result.max) : null;
+    const value = await this.aggregate((eb) => eb.fn.max(column));
+    return value !== null && value !== undefined ? Number(value) : null;
   }
 
   async paginate(
@@ -481,22 +428,7 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
     currentPage: number;
     lastPage: number;
   }> {
-    const dummy = new (this.modelConstructor as any)({});
-    const db = dummy.db as Kysely<any>;
-    const table = dummy.table as string;
-
-    let countQuery = db.selectFrom(table).select((eb) => eb.fn.countAll().as("count"));
-
-    for (const c of this.constraints) {
-      if (c.type === "where") countQuery = countQuery.where(c.column, c.operator as any, c.value);
-      else if (c.type === "whereIn") countQuery = countQuery.where(c.column, "in", c.values);
-      else if (c.type === "whereNull") countQuery = countQuery.where(c.column, "is", null);
-      else if (c.type === "whereNotNull") countQuery = countQuery.where(c.column, "is not", null);
-      else if (c.type === "whereExpression") countQuery = countQuery.where(c.expression as any);
-    }
-
-    const countResult = await countQuery.executeTakeFirst();
-    const total = Number(countResult?.count || 0);
+    const total = await this.count();
 
     this.limit(perPage);
     this.offset((page - 1) * perPage);
@@ -522,8 +454,7 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
    * Immediately executes the query.
    */
   async find(idOrIds: PrimaryKeyValue<M> | PrimaryKeyValue<M>[]): Promise<M | M[] | undefined> {
-    const dummy = new (this.modelConstructor as any)({});
-    const pkColumn = dummy.primaryKey as string;
+    const pkColumn = this.modelMeta().primaryKey;
 
     if (Array.isArray(idOrIds)) {
       if (idOrIds.length === 0) return []; // Optimization for empty arrays

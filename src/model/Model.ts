@@ -32,6 +32,15 @@ export type ModelMutators<M> = Record<string, Mutator<M>>;
 /** Used to write to attributes without going through the attributes proxy (avoids double-applying mutators). */
 const RAW_ATTRIBUTES = Symbol.for("Model.rawAttributes");
 
+/** Distinguishes an AttributeConfig object from a bare default value in the attributes config. */
+function isAttributeConfig(value: unknown): value is AttributeConfig<any, any> {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    ("get" in value || "set" in value || "default" in value || "hidden" in value)
+  );
+}
+
 export abstract class Model<
   DB,
   TB extends keyof DB & string,
@@ -137,33 +146,21 @@ export abstract class Model<
   }
 
   assign(attributes: Partial<Updateable<DB[TB]>>): this {
-    const raw = (this as any)[RAW_ATTRIBUTES] as Record<string, any> | undefined;
-    if (!raw) {
-      this.attributes = { ...this.attributes, ...attributes } as unknown as Selectable<DB[TB]>;
-      if (this.mutators) {
-        for (const key of Object.keys(attributes)) {
-          if (key in this.mutators) {
-            const mutator = this.mutators[key];
-            const incoming = this.attributes[key as keyof typeof this.attributes];
-            const next = mutator(incoming as any, this);
-            (this.attributes as any)[key] = next;
-          }
-        }
-      }
-      return this;
-    }
     this.setRawAttributes(attributes);
-    if (this.mutators) {
-      const current = this.getRawAttributes() as Record<string, any>;
-      const updates: Record<string, any> = {};
-      for (const key of Object.keys(attributes)) {
-        if (key in this.mutators) {
-          updates[key] = this.mutators[key](current[key], this);
-        }
-      }
-      if (Object.keys(updates).length > 0) this.setRawAttributes(updates);
-    }
+    this.applyMutators(Object.keys(attributes));
     return this;
+  }
+
+  /** Runs the configured mutators for the given keys against the raw attributes. */
+  protected applyMutators(keys: string[]): void {
+    const current = this.getRawAttributes() as Record<string, any>;
+    const updates: Record<string, any> = {};
+    for (const key of keys) {
+      if (key in this.mutators) {
+        updates[key] = this.mutators[key](current[key], this);
+      }
+    }
+    if (Object.keys(updates).length > 0) this.setRawAttributes(updates);
   }
 
   /**
@@ -215,25 +212,17 @@ export abstract class Model<
       return { ...(this.attributes as unknown as Partial<Updateable<DB[TB]>>) };
     }
 
-    const dirty: Partial<Updateable<DB[TB]>> = {};
-    const keys = new Set([
-      ...Object.keys(this.attributes as Record<string, unknown>),
-      ...Object.keys(this.originalAttributes as Record<string, unknown>),
-    ]);
+    const current = this.attributes as Record<string, unknown>;
+    const original = this.originalAttributes as Record<string, unknown>;
+    const dirty: Record<string, unknown> = {};
 
-    for (const key of keys) {
-      const typedKey = key as keyof DB[TB] & string;
-      const currentValue = this.attributes[typedKey as keyof typeof this.attributes];
-      const originalValue = this.originalAttributes[typedKey as keyof typeof this.originalAttributes];
-
-      if (currentValue !== originalValue) {
-        dirty[typedKey as keyof Updateable<DB[TB]>] = currentValue as unknown as Updateable<DB[TB]>[keyof Updateable<
-          DB[TB]
-        >];
+    for (const key of new Set([...Object.keys(current), ...Object.keys(original)])) {
+      if (current[key] !== original[key]) {
+        dirty[key] = current[key];
       }
     }
 
-    return dirty;
+    return dirty as Partial<Updateable<DB[TB]>>;
   }
 
   isDirty(): boolean {
@@ -456,10 +445,10 @@ export type AttributeConfig<T, M> = {
   hidden?: boolean;
 };
 
-/** Table attributes get precise types from T; extra keys (virtual attrs) allow AttributeConfig<any, M> | unknown. */
+/** Table attributes get precise types from T; extra keys (virtual attrs) are unconstrained. */
 export type ModelAttributesConfig<M, T extends Record<string, unknown>> = {
   [K in keyof T]?: AttributeConfig<T[K], M> | T[K] | (() => T[K]);
-} & Record<string, AttributeConfig<any, M> | unknown>;
+} & Record<string, unknown>;
 
 export interface ModelConfig<DB, TB extends keyof DB & string> {
   db: Kysely<DB>;
@@ -549,18 +538,9 @@ export function defineModel<
     table = config.table;
     // Fallback to "id" if not provided, explicitly cast to keep TypeScript happy
     primaryKey = (config.primaryKey ?? "id") as PK;
-    hidden = (() => {
-      const attrHidden: (keyof DB[TB] & string)[] = [];
-      if (config.attributes) {
-        for (const [key, value] of Object.entries(config.attributes)) {
-          const attr = value as AttributeConfig<any, Model<DB, TB, PK>> | undefined;
-          if (attr && typeof attr === "object" && "hidden" in attr && attr.hidden) {
-            attrHidden.push(key as keyof DB[TB] & string);
-          }
-        }
-      }
-      return [...new Set(attrHidden)];
-    })();
+    hidden = Object.entries(config.attributes ?? {})
+      .filter(([, value]) => isAttributeConfig(value) && value.hidden)
+      .map(([key]) => key as keyof DB[TB] & string);
     events = (config.events ?? {}) as ModelLifecycleEvents<Model<DB, TB, PK>>;
 
     // Parse attributes config to separate defaults, accessors, and mutators
@@ -568,50 +548,29 @@ export function defineModel<
       super(attributes as any, isNew);
 
       // Initialize accessors and mutators based on config.attributes
-      if (config.attributes) {
-        for (const [key, value] of Object.entries(config.attributes)) {
-          const attr = value as AttributeConfig<any, Model<DB, TB, PK>> | undefined;
-          if (
-            attr &&
-            typeof attr === "object" &&
-            ("get" in attr || "set" in attr || "default" in attr || "hidden" in attr)
-          ) {
-            if (typeof attr.get === "function") this.accessors[key] = attr.get;
-            if (typeof attr.set === "function") this.mutators[key] = attr.set;
-          }
+      for (const [key, attr] of Object.entries(config.attributes ?? {})) {
+        if (isAttributeConfig(attr)) {
+          if (typeof attr.get === "function") this.accessors[key] = attr.get;
+          if (typeof attr.set === "function") this.mutators[key] = attr.set;
         }
       }
 
-      // Apply mutators for initial attributes if it's a new model. Use setRawAttributes
-      // so we don't go through the attributes proxy set trap (which would apply the
-      // mutator again when this is the proxy).
-      if (isNew && this.mutators) {
-        const current = this.getRawAttributes() as Record<string, any>;
-        const updates: Record<string, any> = {};
-        for (const key of Object.keys(current)) {
-          if (key in this.mutators) {
-            updates[key] = this.mutators[key](current[key], this);
-          }
-        }
-        if (Object.keys(updates).length > 0) this.setRawAttributes(updates);
+      // Apply mutators for initial attributes if it's a new model. applyMutators uses
+      // setRawAttributes so we don't go through the attributes proxy set trap (which
+      // would apply the mutator again when this is the proxy).
+      if (isNew) {
+        this.applyMutators(Object.keys(this.getRawAttributes()));
       }
     }
 
     get defaultAttributes(): DefaultAttributes<Insertable<DB[TB]>> {
       const defaults: Record<string, any> = {};
-      if (config.attributes) {
-        for (const [key, value] of Object.entries(config.attributes)) {
-          const attr = value as AttributeConfig<any, Model<DB, TB, PK>> | undefined;
-          if (
-            attr &&
-            typeof attr === "object" &&
-            ("get" in attr || "set" in attr || "default" in attr || "hidden" in attr)
-          ) {
-            if (attr.default !== undefined)
-              defaults[key] = typeof attr.default === "function" ? attr.default() : attr.default;
-          } else {
-            defaults[key] = value;
-          }
+      for (const [key, value] of Object.entries(config.attributes ?? {})) {
+        if (!isAttributeConfig(value)) {
+          // A bare value (or factory) is shorthand for { default: value }
+          defaults[key] = value;
+        } else if (value.default !== undefined) {
+          defaults[key] = typeof value.default === "function" ? value.default() : value.default;
         }
       }
       return defaults as DefaultAttributes<Insertable<DB[TB]>>;
