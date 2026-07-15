@@ -191,10 +191,60 @@ export abstract class StaticForwarder {
   static async create<T extends AnyModelConstructor>(
     this: T,
     attributes: ConstructorParameters<T>[0],
-  ): Promise<InstanceType<T>> {
+  ): Promise<InstanceType<T>>;
+
+  static async create<T extends AnyModelConstructor>(
+    this: T,
+    attributes: ConstructorParameters<T>[0][],
+  ): Promise<InstanceType<T>[]>;
+
+  static async create<T extends AnyModelConstructor>(
+    this: T,
+    attributes: ConstructorParameters<T>[0] | ConstructorParameters<T>[0][],
+  ): Promise<InstanceType<T> | InstanceType<T>[]> {
+    if (Array.isArray(attributes)) {
+      return (this as any).createMany(attributes);
+    }
     const instance = new (this as any)(attributes);
     await instance.save();
     return instance;
+  }
+
+  static async createMany<T extends AnyModelConstructor>(
+    this: T,
+    attributes: ConstructorParameters<T>[0][],
+  ): Promise<InstanceType<T>[]> {
+    const instances = attributes.map((attrs) => new (this as any)(attrs)) as InstanceType<T>[];
+    if (instances.length === 0) {
+      return instances;
+    }
+
+    // Dispatch "saving" and "creating" events for each instance before inserting into the database
+    for (const instance of instances) {
+      await instance.dispatchEvent("saving");
+      await instance.dispatchEvent("creating");
+    }
+
+    const { db, table } = instances[0];
+    const rows = await (db as any)
+      .insertInto(table)
+      .values(instances.map((instance) => instance.getRawAttributes()))
+      .returningAll()
+      .execute();
+
+    // The isntances have been saved to the database, so we should dispatch the "created" and "saved" events for each instance and set their attributes accordingly
+    for (const [index, instance] of instances.entries()) {
+      const row = rows[index];
+      if (row) {
+        instance.setRawAttributes(row);
+        instance.originalAttributes = { ...instance.attributes };
+        instance.exists = true;
+        await instance.dispatchEvent("created");
+      }
+      await instance.dispatchEvent("saved");
+    }
+
+    return instances;
   }
 
   static select<T extends AnyModelConstructor, const K extends Selection<InstanceType<T>>>(

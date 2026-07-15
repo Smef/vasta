@@ -799,6 +799,103 @@ describe("create", () => {
       void Pet.create({ name: "Fluffy", type: "cat", invalidAttribute: "oops" });
     }
   });
+
+  it("should bulk insert an array of records in a single query", async () => {
+    resetQueryCount();
+
+    const pets = await Pet.create([
+      { name: "Bulk One", type: "dog", counter: 1 },
+      { name: "Bulk Two", type: "cat", counter: 2 },
+      { name: "Bulk Three", type: "bird", counter: 3 },
+    ]);
+
+    expect(getQueryCount()).toBe(1);
+    expect(pets).toHaveLength(3);
+
+    for (const pet of pets) {
+      expect(pet).toBeInstanceOf(Pet);
+      expect(pet.attributes.id).toBeGreaterThan(0);
+      expect(pet.exists).toBe(true);
+      expect(pet.isDirty()).toBe(false);
+    }
+
+    expect(pets.map((pet) => pet.attributes.name)).toEqual(["Bulk One", "Bulk Two", "Bulk Three"]);
+
+    const fetched = await Pet.findOrFail(pets.map((pet) => pet.attributes.id));
+    expect(fetched).toHaveLength(3);
+
+    for (const pet of pets) {
+      await pet.delete();
+    }
+  });
+
+  it("should apply default attributes and mutators when bulk inserting", async () => {
+    const pets = await SuperPet.create([
+      { name: "quiet", type: "cat" },
+      { name: "loud", type: "dog" },
+    ]);
+
+    expect(pets.map((pet) => pet.attributes.name)).toEqual(["QUIET", "LOUD"]);
+
+    for (const pet of pets) {
+      await pet.delete();
+    }
+  });
+
+  it("should dispatch lifecycle events for each model when bulk inserting", async () => {
+    const eventNames: string[] = [];
+
+    class EventedPet extends defineModel({
+      db,
+      table: "pets",
+      attributes: {
+        counter: { default: 0 },
+      },
+      events: {
+        saving: () => void eventNames.push("saving"),
+        creating: () => void eventNames.push("creating"),
+        created: () => void eventNames.push("created"),
+        saved: () => void eventNames.push("saved"),
+      },
+    }) {}
+
+    const pets = await EventedPet.create([
+      { name: "Evented One", type: "cat" },
+      { name: "Evented Two", type: "dog" },
+    ]);
+
+    expect(eventNames).toEqual(["saving", "creating", "saving", "creating", "created", "saved", "created", "saved"]);
+
+    for (const pet of pets) {
+      await pet.delete();
+    }
+  });
+
+  it("should return an empty array when bulk inserting an empty array", async () => {
+    const pets = await Pet.create([]);
+    expect(pets).toEqual([]);
+  });
+
+  it("should enforce type safety on bulk insert attributes", () => {
+    if (false) {
+      void Pet.create([{ name: "Fluffy", type: "cat" }]).then((pets) => {
+        void pets.map((pet) => pet.attributes.name);
+      });
+
+      void Pet.create({ name: "Fluffy", type: "cat" }).then((pet) => {
+        void pet.attributes.name;
+      });
+
+      // @ts-expect-error - type is required on every record
+      void Pet.create([{ name: "Fluffy", type: "cat" }, { name: "Missing" }]);
+
+      // @ts-expect-error - name must be a string
+      void Pet.create([{ name: 123, type: "cat" }]);
+
+      // @ts-expect-error - unknown attribute
+      void Pet.create([{ name: "Fluffy", type: "cat", invalidAttribute: "oops" }]);
+    }
+  });
 });
 
 describe("lifecycle events", () => {
