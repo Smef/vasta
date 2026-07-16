@@ -414,6 +414,16 @@ describe("query", () => {
     expect(peopleWithPhone.some((p) => p.attributes.name === "David")).toBe(true);
   });
 
+  it("should find models using whereNull", async () => {
+    const peopleWithoutPhone = await Person.whereNull("phone").get();
+
+    expect(peopleWithoutPhone.length).toBeGreaterThan(0);
+    // verify Jordan is in the list (since Jordan doesn't have a phone)
+    expect(peopleWithoutPhone.some((p) => p.attributes.name === "Jordan")).toBe(true);
+    // verify David is not in the list
+    expect(peopleWithoutPhone.some((p) => p.attributes.name === "David")).toBe(false);
+  });
+
   it("should support expressions in whereIn and orderBy", async () => {
     const people = await Person.whereIn((eb) => eb.fn("lower", ["name"]), ["david", "kate"])
       .orderBy((eb) => eb.fn("lower", ["name"]), "asc")
@@ -1095,6 +1105,25 @@ describe("relationships", () => {
     expect(owner.attributes.id).toBe(1);
     expect(owner.name).toBe(owner.attributes.name);
     expect(owner).toBeInstanceOf(Person);
+  });
+
+  it("should find a model using a has-one relationship", async () => {
+    const person = await Person.findOrFail(1);
+
+    const favoritePet = await person.favoritePet;
+    expectToBeDefined(favoritePet);
+    expect(favoritePet).toBeInstanceOf(Pet);
+    expect(favoritePet.attributes.person_id).toBe(1);
+    // the relation orders by id, so the first pet should be returned
+    const pets = await person.pets;
+    expect(favoritePet.attributes.id).toBe(Math.min(...pets.map((pet) => pet.attributes.id)));
+  });
+
+  it("should return undefined for a has-one relationship with no related records", async () => {
+    const person = await Person.where("name", "=", "Morgan").firstOrFail();
+
+    const favoritePet = await person.favoritePet;
+    expect(favoritePet).toBeUndefined();
   });
 
   it("should return return an empty array for a one-to-many relationship with no related records", async () => {

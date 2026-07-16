@@ -3,11 +3,12 @@
     "moduleResolution": "Node",
     "target": "ESNext",
     "declaration": true,
+    "declarationMap": true,
     "strict": true,
     "noImplicitAny": true,
     "module": "ESNext",
-    "outDir": "dist/esm",
-    "baseUrl": ".",
+    "outDir": "dist",
+    "rootDir": "./src",
     "paths": {
       "@src/*": ["./src/*"]
     }

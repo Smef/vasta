@@ -1,123 +1,109 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { Expression, ExpressionBuilder, ComparisonOperatorExpression } from "kysely";
-import { Builder, ExtractDB, ExtractTB, Selection, ExtractSelection, AnyModelConstructor } from "./Builder.js";
+import { ComparisonOperatorExpression } from "kysely";
+import {
+  Builder,
+  ColumnArg,
+  ExpressionArg,
+  ModelExpressionBuilder,
+  RelationKeys,
+  Selection,
+  ExtractSelection,
+  AnyModelConstructor,
+  WhereShorthandValue,
+  WhereValue,
+  WithConstraints,
+  PrimaryKeyValue as ModelPrimaryKeyValue,
+} from "./Builder.js";
 
 export { AnyModelConstructor };
-export type PrimaryKeyValue<T extends AnyModelConstructor> =
-  InstanceType<T>["attributes"][InstanceType<T>["primaryKey"]];
+export type PrimaryKeyValue<T extends AnyModelConstructor> = ModelPrimaryKeyValue<InstanceType<T>>;
+
+/**
+ * Shorthands for the forwarded signatures below.
+ *
+ * Every static must re-declare its Builder counterpart with a `this: T` parameter so
+ * TypeScript late-binds T to the concrete class at the call site: `Pet.where(...)`
+ * infers from `typeof Pet`, including relations and methods added on the subclass
+ * after defineModel. TypeScript has no way to derive such signatures from Builder
+ * mechanically (that would require higher-kinded types), so each method is declared
+ * by hand and these aliases keep the declarations short.
+ */
+type Inst<T extends AnyModelConstructor> = InstanceType<T>;
+type Q<T extends AnyModelConstructor, S extends string = never> = Builder<Inst<T>, S>;
 
 export abstract class StaticForwarder {
-  static query<T extends AnyModelConstructor>(this: T): Builder<InstanceType<T>> {
+  static query<T extends AnyModelConstructor>(this: T): Q<T> {
     return new Builder(this as any);
   }
 
-  static where<T extends AnyModelConstructor>(
-    this: T,
-    expression:
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
-  ): Builder<InstanceType<T>>;
-
-  static where<
-    T extends AnyModelConstructor,
-    Column extends
-      | (keyof InstanceType<T>["attributes"] & string)
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
-  >(
+  static where<T extends AnyModelConstructor>(this: T, expression: ExpressionArg<Inst<T>>): Q<T>;
+  static where<T extends AnyModelConstructor, Column extends ColumnArg<Inst<T>>>(
     this: T,
     column: Column,
     operator: ComparisonOperatorExpression,
-    value: Column extends keyof InstanceType<T>["attributes"] & string
-      ? InstanceType<T>["attributes"][Column] | null | Expression<any>
-      : any,
-  ): Builder<InstanceType<T>>;
-
-  static where<
-    T extends AnyModelConstructor,
-    Column extends
-      | (keyof InstanceType<T>["attributes"] & string)
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
-  >(
+    value: WhereValue<Inst<T>, Column>,
+  ): Q<T>;
+  static where<T extends AnyModelConstructor, Column extends ColumnArg<Inst<T>>>(
     this: T,
     column: Column,
-    value: Column extends keyof InstanceType<T>["attributes"] & string
-      ? InstanceType<T>["attributes"][Column] | InstanceType<T>["attributes"][Column][] | null | Expression<any>
-      : any[] | any,
-  ): Builder<InstanceType<T>>;
-
-  static where<T extends AnyModelConstructor>(this: T, ...args: any[]): Builder<InstanceType<T>> {
+    value: WhereShorthandValue<Inst<T>, Column>,
+  ): Q<T>;
+  static where<T extends AnyModelConstructor>(this: T, ...args: any[]): Q<T> {
     return (this as any).query().where(...args);
   }
 
-  static whereIn<T extends AnyModelConstructor, Column extends keyof InstanceType<T>["attributes"] & string>(
+  static whereIn<T extends AnyModelConstructor, Column extends keyof Inst<T>["attributes"] & string>(
     this: T,
     column: Column,
-    values:
-      | InstanceType<T>["attributes"][Column][]
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
-  ): Builder<InstanceType<T>>;
-
+    values: Inst<T>["attributes"][Column][] | ExpressionArg<Inst<T>>,
+  ): Q<T>;
   static whereIn<T extends AnyModelConstructor>(
     this: T,
-    column:
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
-    values:
-      | any[]
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
-  ): Builder<InstanceType<T>>;
-
-  static whereIn<T extends AnyModelConstructor>(this: T, ...args: any[]): Builder<InstanceType<T>> {
+    column: ExpressionArg<Inst<T>>,
+    values: any[] | ExpressionArg<Inst<T>>,
+  ): Q<T>;
+  static whereIn<T extends AnyModelConstructor>(this: T, ...args: any[]): Q<T> {
     return (this as any).query().whereIn(...args);
   }
 
-  static whereNotNull<T extends AnyModelConstructor>(
-    this: T,
-    column:
-      | (keyof InstanceType<T>["attributes"] & string)
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
-  ): Builder<InstanceType<T>> {
+  static whereNull<T extends AnyModelConstructor>(this: T, column: ColumnArg<Inst<T>>): Q<T> {
+    return (this as any).query().whereNull(column);
+  }
+
+  static whereNotNull<T extends AnyModelConstructor>(this: T, column: ColumnArg<Inst<T>>): Q<T> {
     return (this as any).query().whereNotNull(column);
   }
 
-  static limit<T extends AnyModelConstructor>(this: T, value: number): Builder<InstanceType<T>> {
+  static limit<T extends AnyModelConstructor>(this: T, value: number): Q<T> {
     return (this as any).query().limit(value);
   }
 
-  static offset<T extends AnyModelConstructor>(this: T, value: number): Builder<InstanceType<T>> {
+  static offset<T extends AnyModelConstructor>(this: T, value: number): Q<T> {
     return (this as any).query().offset(value);
   }
 
   static orderBy<T extends AnyModelConstructor>(
     this: T,
-    column:
-      | (keyof InstanceType<T>["attributes"] & string)
-      | Expression<any>
-      | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => Expression<any>),
+    column: ColumnArg<Inst<T>>,
     direction: "asc" | "desc" = "asc",
-  ): Builder<InstanceType<T>> {
+  ): Q<T> {
     return (this as any).query().orderBy(column, direction);
   }
 
-  static async get<T extends AnyModelConstructor>(this: T): Promise<InstanceType<T>[]> {
+  static async get<T extends AnyModelConstructor>(this: T): Promise<Inst<T>[]> {
     return (this as any).query().get();
   }
 
-  static async all<T extends AnyModelConstructor>(this: T): Promise<InstanceType<T>[]> {
+  static async all<T extends AnyModelConstructor>(this: T): Promise<Inst<T>[]> {
     return (this as any).query().get();
   }
 
-  static async first<T extends AnyModelConstructor>(this: T): Promise<InstanceType<T> | undefined> {
+  static async first<T extends AnyModelConstructor>(this: T): Promise<Inst<T> | undefined> {
     return (this as any).query().first();
   }
 
-  static async firstOrFail<T extends AnyModelConstructor>(this: T): Promise<InstanceType<T>> {
+  static async firstOrFail<T extends AnyModelConstructor>(this: T): Promise<Inst<T>> {
     return (this as any).query().firstOrFail();
   }
 
@@ -127,14 +113,14 @@ export abstract class StaticForwarder {
 
   static async sum<T extends AnyModelConstructor>(
     this: T,
-    column: keyof InstanceType<T>["attributes"] & string,
+    column: keyof Inst<T>["attributes"] & string,
   ): Promise<number> {
     return (this as any).query().sum(column);
   }
 
   static async max<T extends AnyModelConstructor>(
     this: T,
-    column: keyof InstanceType<T>["attributes"] & string,
+    column: keyof Inst<T>["attributes"] & string,
   ): Promise<number | null> {
     return (this as any).query().max(column);
   }
@@ -144,7 +130,7 @@ export abstract class StaticForwarder {
     perPage?: number,
     page?: number,
   ): Promise<{
-    data: InstanceType<T>[];
+    data: Inst<T>[];
     total: number;
     perPage: number;
     currentPage: number;
@@ -153,31 +139,21 @@ export abstract class StaticForwarder {
     return (this as any).query().paginate(perPage, page);
   }
 
-  static async find<T extends AnyModelConstructor>(
-    this: T,
-    id: PrimaryKeyValue<T>,
-  ): Promise<InstanceType<T> | undefined>;
-
-  static async find<T extends AnyModelConstructor>(this: T, ids: PrimaryKeyValue<T>[]): Promise<InstanceType<T>[]>;
-
+  static async find<T extends AnyModelConstructor>(this: T, id: PrimaryKeyValue<T>): Promise<Inst<T> | undefined>;
+  static async find<T extends AnyModelConstructor>(this: T, ids: PrimaryKeyValue<T>[]): Promise<Inst<T>[]>;
   static async find<T extends AnyModelConstructor>(
     this: T,
     idOrIds: PrimaryKeyValue<T> | PrimaryKeyValue<T>[],
-  ): Promise<InstanceType<T> | InstanceType<T>[] | undefined> {
+  ): Promise<Inst<T> | Inst<T>[] | undefined> {
     return (this as any).query().find(idOrIds);
   }
 
-  static async findOrFail<T extends AnyModelConstructor>(this: T, id: PrimaryKeyValue<T>): Promise<InstanceType<T>>;
-
-  static async findOrFail<T extends AnyModelConstructor>(
-    this: T,
-    ids: PrimaryKeyValue<T>[],
-  ): Promise<InstanceType<T>[]>;
-
+  static async findOrFail<T extends AnyModelConstructor>(this: T, id: PrimaryKeyValue<T>): Promise<Inst<T>>;
+  static async findOrFail<T extends AnyModelConstructor>(this: T, ids: PrimaryKeyValue<T>[]): Promise<Inst<T>[]>;
   static async findOrFail<T extends AnyModelConstructor>(
     this: T,
     idOrIds: PrimaryKeyValue<T> | PrimaryKeyValue<T>[],
-  ): Promise<InstanceType<T> | InstanceType<T>[]> {
+  ): Promise<Inst<T> | Inst<T>[]> {
     return (this as any).query().findOrFail(idOrIds);
   }
 
@@ -191,17 +167,15 @@ export abstract class StaticForwarder {
   static async create<T extends AnyModelConstructor>(
     this: T,
     attributes: ConstructorParameters<T>[0],
-  ): Promise<InstanceType<T>>;
-
+  ): Promise<Inst<T>>;
   static async create<T extends AnyModelConstructor>(
     this: T,
     attributes: ConstructorParameters<T>[0][],
-  ): Promise<InstanceType<T>[]>;
-
+  ): Promise<Inst<T>[]>;
   static async create<T extends AnyModelConstructor>(
     this: T,
     attributes: ConstructorParameters<T>[0] | ConstructorParameters<T>[0][],
-  ): Promise<InstanceType<T> | InstanceType<T>[]> {
+  ): Promise<Inst<T> | Inst<T>[]> {
     if (Array.isArray(attributes)) {
       return (this as any).createMany(attributes);
     }
@@ -213,8 +187,8 @@ export abstract class StaticForwarder {
   static async createMany<T extends AnyModelConstructor>(
     this: T,
     attributes: ConstructorParameters<T>[0][],
-  ): Promise<InstanceType<T>[]> {
-    const instances = attributes.map((attrs) => new (this as any)(attrs)) as InstanceType<T>[];
+  ): Promise<Inst<T>[]> {
+    const instances = attributes.map((attrs) => new (this as any)(attrs)) as Inst<T>[];
     if (instances.length === 0) {
       return instances;
     }
@@ -232,7 +206,7 @@ export abstract class StaticForwarder {
       .returningAll()
       .execute();
 
-    // The isntances have been saved to the database, so we should dispatch the "created" and "saved" events for each instance and set their attributes accordingly
+    // The instances have been saved to the database, so we should dispatch the "created" and "saved" events for each instance and set their attributes accordingly
     for (const [index, instance] of instances.entries()) {
       const row = rows[index];
       if (row) {
@@ -247,20 +221,17 @@ export abstract class StaticForwarder {
     return instances;
   }
 
-  static select<T extends AnyModelConstructor, const K extends Selection<InstanceType<T>>>(
+  static select<T extends AnyModelConstructor, const K extends Selection<Inst<T>>>(
     this: T,
-    columns: K[] | ((eb: ExpressionBuilder<ExtractDB<InstanceType<T>>, ExtractTB<InstanceType<T>>>) => K[]),
-  ): Builder<InstanceType<T>, ExtractSelection<K>> {
+    columns: K[] | ((eb: ModelExpressionBuilder<Inst<T>>) => K[]),
+  ): Q<T, ExtractSelection<K>> {
     return (this as any).query().select(columns);
   }
 
   static with<T extends AnyModelConstructor>(
     this: T,
-    ...relations: (
-      | import("./Builder").RelationKeys<InstanceType<T>>
-      | import("./Builder").WithConstraints<InstanceType<T>>
-    )[]
-  ): Builder<InstanceType<T>> {
+    ...relations: (RelationKeys<Inst<T>> | WithConstraints<Inst<T>>)[]
+  ): Q<T> {
     return (this as any).query().with(...relations);
   }
 }

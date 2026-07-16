@@ -9,7 +9,7 @@
     "moduleResolution": "Bundler",
     "composite": true,
     "noEmit": true,
-    "baseUrl": ".",
+    "rootDir": "..",
     "paths": {
       "@/*": ["./*"],
       "@src/*": ["../src/*"],

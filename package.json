@@ -1,6 +1,6 @@
 {
   "name": "vasta-orm",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "description": "Active record ORM built on top of Kysely",
   "type": "module",
   "author": "David Nahodyl <david.nahodyl@gmail.com>",
@@ -25,14 +25,8 @@
   ],
   "exports": {
     ".": {
-      "import": {
-        "types": "./src/index.ts",
-        "default": "./dist/esm/index.js"
-      },
-      "require": {
-        "types": "./src/index.ts",
-        "default": "./dist/cjs/index.js"
-      }
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     }
   },
   "scripts": {
@@ -42,9 +36,7 @@
     "test:reset": "pnpm run db:reset && vitest run",
     "test:watch": "vitest --typecheck",
     "clean": "rm -rf dist/*",
-    "build": "pnpm run clean && (npm run build:esm & npm run build:cjs)",
-    "build:esm": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json --resolve-full-paths --resolve-full-extension .js",
-    "build:cjs": "tsc -p tsconfig.cjs.json && tsc-alias -p tsconfig.cjs.json",
+    "build": "pnpm run clean && tsc -p tsconfig.json && tsc-alias -p tsconfig.json --resolve-full-paths --resolve-full-extension .js",
     "generate:docs": "cd docs && pnpm run generate",
     "db:reset": "kysely migrate:rollback --all && kysely migrate:latest && kysely seed:run",
     "db:migrate": "kysely migrate:latest",
@@ -56,22 +48,21 @@
     "format": "pnpm run fmt && pnpm run lint:fix",
     "publish": "pnpm run build && npm publish --access public"
   },
-  "main": "dist/cjs/index.js",
-  "module": "dist/esm/index.js",
-  "types": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "devDependencies": {
-    "@eslint/js": "^9.39.4",
-    "@types/node": "^24.12.4",
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^24.13.3",
     "@types/pg": "^8.20.0",
-    "eslint": "^10.3.0",
+    "eslint": "^10.7.0",
     "eslint-config-prettier": "^9.1.2",
-    "kysely": "^0.29.0",
+    "kysely": "^0.29.3",
     "kysely-ctl": "^0.21.0",
     "oxfmt": "^0.51.0",
-    "pg": "^8.20.0",
-    "tsc-alias": "^1.8.17",
+    "pg": "^8.22.0",
+    "tsc-alias": "^1.9.1",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.59.3",
+    "typescript-eslint": "^8.64.0",
     "vitest": "^1.6.1"
   },
   "peerDependencies": {
