@@ -101,6 +101,18 @@ export type WithConstraints<M> = {
   [K in RelationKeys<M>]?: M[K] extends RelationBuilder<infer RM, any> ? (query: Builder<RM>) => void : never;
 };
 
+/** Constraint callbacks for withCount(), keyed by relation name. */
+export type CountConstraints<M> = {
+  [K in RelationKeys<M>]?: M[K] extends RelationBuilder<infer RM, any> ? (query: Builder<RM>) => void : never;
+};
+
+/** The relation names counted by a withCount() call: string arguments plus constraint object keys. */
+export type CountedRelations<A> = A extends string ? A : keyof A & string;
+
+/** A model type augmented with the `${relation}Count` attributes added by withCount(). */
+export type WithCounted<M extends ModelLike, R extends string> = M &
+  Record<`${R}Count`, number> & { attributes: Record<`${R}Count`, number> };
+
 export class Builder<M extends ModelLike, S extends keyof M["attributes"] | string = never> {
   protected constraints: Constraint[] = [];
   protected joinConstraints: JoinConstraint[] = [];
@@ -112,6 +124,7 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
   )[] = []; // Track our columns
   protected selectAllTables: string[] = [];
   protected eagerLoads: { relation: string; constraint?: (query: Builder<any>) => void }[] = [];
+  protected relationCounts: { relation: string; constraint?: (query: Builder<any>) => void }[] = [];
   protected limitValue?: number;
   protected offsetValue?: number;
   protected orderings: { column: any; direction: "asc" | "desc" }[] = [];
@@ -214,6 +227,69 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
       }
     }
     return this;
+  }
+
+  /**
+   * Adds a `${relation}Count` attribute to each result, holding the number of related records.
+   * Accepts relation names and/or objects mapping relation names to constraint callbacks.
+   */
+  withCount<Args extends (RelationKeys<M> | CountConstraints<M>)[]>(
+    ...relations: Args
+  ): Builder<WithCounted<M, CountedRelations<Args[number]>>, S> {
+    for (const relation of relations) {
+      if (typeof relation === "string") {
+        this.relationCounts.push({ relation });
+      } else {
+        for (const [key, constraint] of Object.entries(relation as Record<string, any>)) {
+          this.relationCounts.push({ relation: key, constraint });
+        }
+      }
+    }
+    // We must cast here because we are technically changing the builder's type signature
+    return this as unknown as Builder<WithCounted<M, CountedRelations<Args[number]>>, S>;
+  }
+
+  /** Reads a relation's metadata by instantiating a throwaway model and accessing the relation getter. */
+  protected relationMeta(relation: string): RelationMetadata {
+    const dummy = new (this.modelConstructor as any)({});
+    const relationBuilder = dummy[relation] as RelationBuilder<any, any> | undefined;
+    if (!relationBuilder?.relationMetadata) {
+      throw new Error(`Relation '${relation}' is not properly defined or does not return a RelationBuilder.`);
+    }
+    return relationBuilder.relationMetadata;
+  }
+
+  /** Builds a correlated subquery counting related records, aliased as `${relation}Count`. */
+  private relationCountSelect(eb: any, relation: string, constraint?: (query: Builder<any>) => void): any {
+    const meta = this.relationMeta(relation);
+    const { table } = this.modelMeta();
+    const relatedTable = new (meta.relatedClass as any)({}).table;
+    const alias = `${relation}Count`;
+
+    let subquery: any;
+    if (meta.type === "belongsToMany") {
+      subquery = eb
+        .selectFrom(meta.pivotTable!)
+        .innerJoin(
+          relatedTable,
+          `${meta.pivotTable!}.${meta.relatedPivotKey!}`,
+          `${relatedTable}.${meta.matchRelatedKey}`,
+        )
+        .whereRef(`${meta.pivotTable!}.${meta.foreignPivotKey!}`, "=", `${table}.${meta.matchThisKey}`);
+    } else {
+      subquery = eb
+        .selectFrom(relatedTable)
+        .whereRef(`${relatedTable}.${meta.matchRelatedKey}`, "=", `${table}.${meta.matchThisKey}`);
+    }
+
+    if (constraint) {
+      const constraintBuilder = new Builder<any>(meta.relatedClass);
+      constraint(constraintBuilder);
+      subquery = constraintBuilder.applyConstraints(subquery);
+    }
+
+    // Cast to integer so drivers that return bigint counts as strings still produce numbers
+    return subquery.select((seb: any) => seb.cast(seb.fn.countAll(), "integer").as(alias)).as(alias);
   }
 
   protected async eagerLoad(models: any[]): Promise<void> {
@@ -340,6 +416,10 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
       }
     } else if (this.selectAllTables.length === 0) {
       query = query.selectAll() as any;
+    }
+
+    for (const { relation, constraint } of this.relationCounts) {
+      query = query.select((eb: any) => this.relationCountSelect(eb, relation, constraint)) as any;
     }
 
     query = this.applyConstraints(query);

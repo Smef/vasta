@@ -13,6 +13,9 @@ import {
   WhereShorthandValue,
   WhereValue,
   WithConstraints,
+  CountConstraints,
+  CountedRelations,
+  WithCounted,
   PrimaryKeyValue as ModelPrimaryKeyValue,
 } from "./Builder.js";
 
@@ -255,5 +258,12 @@ export abstract class StaticForwarder {
     ...relations: (RelationKeys<Inst<T>> | WithConstraints<Inst<T>>)[]
   ): Q<T> {
     return (this as any).query().with(...relations);
+  }
+
+  static withCount<T extends AnyModelConstructor, Args extends (RelationKeys<Inst<T>> | CountConstraints<Inst<T>>)[]>(
+    this: T,
+    ...relations: Args
+  ): Builder<WithCounted<Inst<T>, CountedRelations<Args[number]>>> {
+    return (this as any).query().withCount(...relations);
   }
 }
