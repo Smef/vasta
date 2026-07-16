@@ -157,6 +157,11 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
     return this;
   }
 
+  whereNull(column: ColumnArg<M>): this {
+    this.constraints.push({ type: "whereNull", column });
+    return this;
+  }
+
   whereNotNull(column: ColumnArg<M>): this {
     this.constraints.push({ type: "whereNotNull", column });
     return this;

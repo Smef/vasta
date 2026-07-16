@@ -32,13 +32,72 @@ export type ModelMutators<M> = Record<string, Mutator<M>>;
 /** Used to write to attributes without going through the attributes proxy (avoids double-applying mutators). */
 const RAW_ATTRIBUTES = Symbol.for("Model.rawAttributes");
 
-/** Distinguishes an AttributeConfig object from a bare default value in the attributes config. */
-function isAttributeConfig(value: unknown): value is AttributeConfig<any, any> {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    ("get" in value || "set" in value || "default" in value || "hidden" in value)
-  );
+/**
+ * Wraps a model instance so that:
+ * - reads/writes on `model.attributes` go through the configured accessors/mutators
+ * - unknown top-level properties fall through to the attributes (so `pet.name` works)
+ */
+function createModelProxy<M extends Model<any, any, any>>(model: M): M {
+  return new Proxy(model, {
+    get(target, prop, receiver) {
+      // Special handling for attributes: wrap in a proxy so reads go through accessors/mutators
+      if (prop === "attributes") {
+        const rawAttributes = target.attributes;
+        return new Proxy(rawAttributes, {
+          get(attrTarget, attrProp, attrReceiver) {
+            if (target.accessors && typeof attrProp === "string" && attrProp in target.accessors) {
+              const accessor = target.accessors[attrProp];
+              const rawValue = attrProp in attrTarget ? (attrTarget as any)[attrProp] : undefined;
+              return accessor(rawValue as any, target);
+            }
+            return Reflect.get(attrTarget, attrProp, attrReceiver);
+          },
+          set(attrTarget, attrProp, value, attrReceiver) {
+            if (target.mutators && typeof attrProp === "string" && attrProp in target.mutators) {
+              const mutator = target.mutators[attrProp];
+              const next = mutator(value as any, target);
+              (attrTarget as any)[attrProp] = next;
+              return true;
+            }
+            return Reflect.set(attrTarget, attrProp, value, attrReceiver);
+          },
+        });
+      }
+
+      if (prop in target) {
+        return Reflect.get(target, prop, receiver);
+      }
+
+      if (target.accessors && typeof prop === "string" && prop in target.accessors) {
+        const accessor = target.accessors[prop];
+        const rawValue = target.attributes && prop in target.attributes ? (target.attributes as any)[prop] : undefined;
+        return accessor(rawValue as any, target);
+      }
+
+      if (target.attributes && typeof prop === "string" && prop in target.attributes) {
+        return target.attributes[prop as keyof typeof target.attributes];
+      }
+      return undefined;
+    },
+    set(target, prop, value, receiver) {
+      if (prop in target) {
+        return Reflect.set(target, prop, value, receiver);
+      }
+
+      if (target.mutators && typeof prop === "string" && prop in target.mutators) {
+        const mutator = target.mutators[prop];
+        const next = mutator(value as any, target);
+        target.attributes[prop as keyof typeof target.attributes] = next as any;
+        return true;
+      }
+
+      if (target.attributes && typeof prop === "string") {
+        target.attributes[prop as keyof typeof target.attributes] = value as any;
+        return true;
+      }
+      return Reflect.set(target, prop, value, receiver);
+    },
+  });
 }
 
 export abstract class Model<
@@ -82,67 +141,7 @@ export abstract class Model<
     this.originalAttributes = { ...this.attributes };
     (this as any)[RAW_ATTRIBUTES] = this.attributes;
 
-    return new Proxy(this, {
-      get(target, prop, receiver) {
-        // Special handling for attributes: wrap in a proxy so reads go through accessors/mutators
-        if (prop === "attributes") {
-          const rawAttributes = target.attributes;
-          return new Proxy(rawAttributes, {
-            get(attrTarget, attrProp, attrReceiver) {
-              if (target.accessors && typeof attrProp === "string" && attrProp in target.accessors) {
-                const accessor = target.accessors[attrProp];
-                const rawValue = attrProp in attrTarget ? (attrTarget as any)[attrProp] : undefined;
-                return accessor(rawValue as any, target);
-              }
-              return Reflect.get(attrTarget, attrProp, attrReceiver);
-            },
-            set(attrTarget, attrProp, value, attrReceiver) {
-              if (target.mutators && typeof attrProp === "string" && attrProp in target.mutators) {
-                const mutator = target.mutators[attrProp];
-                const next = mutator(value as any, target);
-                (attrTarget as any)[attrProp] = next;
-                return true;
-              }
-              return Reflect.set(attrTarget, attrProp, value, attrReceiver);
-            },
-          });
-        }
-
-        if (prop in target) {
-          return Reflect.get(target, prop, receiver);
-        }
-
-        if (target.accessors && typeof prop === "string" && prop in target.accessors) {
-          const accessor = target.accessors[prop];
-          const rawValue =
-            target.attributes && prop in target.attributes ? (target.attributes as any)[prop] : undefined;
-          return accessor(rawValue as any, target);
-        }
-
-        if (target.attributes && typeof prop === "string" && prop in target.attributes) {
-          return target.attributes[prop as keyof typeof target.attributes];
-        }
-        return undefined;
-      },
-      set(target, prop, value, receiver) {
-        if (prop in target) {
-          return Reflect.set(target, prop, value, receiver);
-        }
-
-        if (target.mutators && typeof prop === "string" && prop in target.mutators) {
-          const mutator = target.mutators[prop];
-          const next = mutator(value as any, target);
-          target.attributes[prop as keyof typeof target.attributes] = next as any;
-          return true;
-        }
-
-        if (target.attributes && typeof prop === "string") {
-          target.attributes[prop as keyof typeof target.attributes] = value as any;
-          return true;
-        }
-        return Reflect.set(target, prop, value, receiver);
-      },
-    });
+    return createModelProxy(this);
   }
 
   assign(attributes: Partial<Updateable<DB[TB]>>): this {
@@ -340,6 +339,38 @@ export abstract class Model<
   }
 
   /**
+   * Defines a one-to-one relationship where the related table holds the foreign key.
+   * e.g., A Person has one Passport.
+   */
+  hasOne<R extends AnyModelConstructor>(
+    relatedClass: R,
+    foreignKey: keyof InstanceType<R>["attributes"] & string, // The column on the related table
+    localKey?: keyof DB[TB] & string,
+    relationName?: string,
+  ): RelationBuilder<InstanceType<R>, InstanceType<R> | undefined> {
+    const lKey = localKey || (this.primaryKey as string);
+    const localValue = this.attributes[lKey as keyof typeof this.attributes];
+    const cacheKey = relationName || getCallerMethodName() || relatedClass.name;
+
+    const builder = new RelationBuilder<InstanceType<R>, InstanceType<R> | undefined>(
+      relatedClass,
+      (b) => b.first() as any, // Resolves to a single model
+      cacheKey,
+      this,
+      {
+        type: "hasOne",
+        relatedClass,
+        matchThisKey: lKey as string,
+        matchRelatedKey: foreignKey,
+        relationName: cacheKey,
+      },
+    );
+
+    builder.where(foreignKey as any, "=", localValue as any);
+    return builder._markClean();
+  }
+
+  /**
    * Defines a one-to-many relationship.
    * e.g., A Person has many Pets.
    */
@@ -419,163 +450,4 @@ export abstract class Model<
   }
 }
 
-// Model config and function to set up the models and help type inference and intellisense
-
-export type Simplify<T> = { [K in keyof T]: T[K] } & {};
-
-export type ModelConstructorArgs<T, DA> = Simplify<Omit<T, keyof DA> & Partial<Pick<T, keyof DA & keyof T>>>;
-
 export type DefaultAttributes<T> = { [K in keyof T]?: T[K] | (() => T[K]) };
-
-export type AttributeConfig<T, M> = {
-  default?: T | (() => T);
-  /**
-   * Accessors receive the original attribute value and can modify it as needed.
-   * The return type must match the original type of the attribute as defined in the Kysely type definition.
-   */
-  get?: (value: T, model: M) => T;
-  /**
-   * Mutators receive the new attribute value and must return the value to persist.
-   * The return type must match the original type of the attribute as defined in the Kysely type definition.
-   */
-  set?: (value: T, model: M) => T;
-  /**
-   * When true, this attribute is omitted from JSON serialization.
-   */
-  hidden?: boolean;
-};
-
-/** Table attributes get precise types from T; extra keys (virtual attrs) are unconstrained. */
-export type ModelAttributesConfig<M, T extends Record<string, unknown>> = {
-  [K in keyof T]?: AttributeConfig<T[K], M> | T[K] | (() => T[K]);
-} & Record<string, unknown>;
-
-export interface ModelConfig<DB, TB extends keyof DB & string> {
-  db: Kysely<DB>;
-  table: TB;
-  // Make primaryKey optional, it will default to "id" under the hood
-  primaryKey?: keyof DB[TB] & string;
-  attributes?: ModelAttributesConfig<Model<DB, TB, keyof DB[TB] & string>, Selectable<DB[TB]>>;
-  events?: ModelLifecycleEvents<Model<DB, TB, keyof DB[TB] & string>>;
-}
-
-export type DefaultPrimaryKey<DB, TB extends keyof DB & string> =
-  Extract<"id", keyof DB[TB] & string> extends never ? keyof DB[TB] & string : Extract<"id", keyof DB[TB] & string>;
-
-/** Utility type to require that certain attributes have been selected when defining a function on a model. */
-export type RequireSelected<
-  M extends { attributes: Record<string, unknown> },
-  K extends keyof M["attributes"] & string,
-> = Omit<M, "attributes" | (keyof M["attributes"] & string)> & {
-  attributes: Pick<M["attributes"], K> & Partial<Omit<M["attributes"], K>>;
-} & Pick<M["attributes"], K> &
-  Partial<Omit<M["attributes"], K>>;
-
-// Keys in the attributes config that have an explicit default.
-type DefaultedAttributeKeys<DA> = {
-  [K in keyof DA]: DA[K] extends { default: any } ? K : never;
-}[keyof DA];
-
-/**
- * The class returned by defineModel: an abstract constructor producing instances that are
- * the Model API merged with the row's selected attributes, plus every static query method
- * inherited from Model / StaticForwarder.
- *
- * This must stay an explicit named type. If defineModel's return type is left to inference,
- * declaration emit serializes the anonymous class structurally, which produces
- * non-portable deep imports into kysely/dist and collapses self-referencing methods
- * (save, assign, ...) to `any` in the published .d.ts.
- */
-export type ModelClass<
-  DB,
-  TB extends keyof DB & string,
-  PK extends keyof DB[TB] & string,
-  DefaultedInsertable = Record<never, never>,
-> = (abstract new (
-  attributes: ModelConstructorArgs<Insertable<DB[TB]>, DefaultedInsertable>,
-) => DefinedModel<DB, TB, PK> & Selectable<DB[TB]>) & {
-  [K in keyof typeof Model]: (typeof Model)[K];
-};
-
-/**
- * Instance side of a class produced by defineModel. Redeclares the abstract members
- * (db, table, primaryKey) as concrete because defineModel's config implements them —
- * subclasses of the returned class must not be forced to re-implement them.
- */
-export interface DefinedModel<DB, TB extends keyof DB & string, PK extends keyof DB[TB] & string> extends Model<
-  DB,
-  TB,
-  PK
-> {
-  db: Kysely<DB>;
-  table: TB;
-  primaryKey: PK;
-}
-
-export function defineModel<
-  DB,
-  TB extends keyof DB & string,
-  PK extends keyof DB[TB] & string = DefaultPrimaryKey<DB, TB>,
-  // DA is the *narrow* attributes config type, but attributes are always at least ModelAttributesConfig<...>
-  DA extends Partial<ModelAttributesConfig<Model<DB, TB, PK>, Selectable<DB[TB]>>> = Record<never, never>,
->(
-  config: Omit<ModelConfig<DB, TB>, "primaryKey" | "events" | "attributes"> & {
-    primaryKey?: PK;
-    events?: ModelLifecycleEvents<Model<DB, TB, PK>>;
-    /**
-     * Use explicit type here so object literals get contextual typing and
-     * get/set callbacks are properly inferred. DA further narrows this type.
-     */
-    attributes?: ModelAttributesConfig<Model<DB, TB, PK>, Selectable<DB[TB]>> & DA;
-  },
-): ModelClass<DB, TB, PK, Pick<Insertable<DB[TB]>, Extract<DefaultedAttributeKeys<DA>, keyof Insertable<DB[TB]>>>> {
-  // Derive the subset of Insertable<DB[TB]> that have defaults defined in DA.
-  type DefaultedInsertableKeys = Extract<DefaultedAttributeKeys<DA>, keyof Insertable<DB[TB]>>;
-  type DefaultedInsertable = Pick<Insertable<DB[TB]>, DefaultedInsertableKeys>;
-
-  abstract class BaseModel extends Model<DB, TB, PK> {
-    db = config.db;
-    table = config.table;
-    // Fallback to "id" if not provided, explicitly cast to keep TypeScript happy
-    primaryKey = (config.primaryKey ?? "id") as PK;
-    hidden = Object.entries(config.attributes ?? {})
-      .filter(([, value]) => isAttributeConfig(value) && value.hidden)
-      .map(([key]) => key as keyof DB[TB] & string);
-    events = (config.events ?? {}) as ModelLifecycleEvents<Model<DB, TB, PK>>;
-
-    // Parse attributes config to separate defaults, accessors, and mutators
-    constructor(attributes: ModelConstructorArgs<Insertable<DB[TB]>, DefaultedInsertable>, isNew = true) {
-      super(attributes as any, isNew);
-
-      // Initialize accessors and mutators based on config.attributes
-      for (const [key, attr] of Object.entries(config.attributes ?? {})) {
-        if (isAttributeConfig(attr)) {
-          if (typeof attr.get === "function") this.accessors[key] = attr.get;
-          if (typeof attr.set === "function") this.mutators[key] = attr.set;
-        }
-      }
-
-      // Apply mutators for initial attributes if it's a new model. applyMutators uses
-      // setRawAttributes so we don't go through the attributes proxy set trap (which
-      // would apply the mutator again when this is the proxy).
-      if (isNew) {
-        this.applyMutators(Object.keys(this.getRawAttributes()));
-      }
-    }
-
-    get defaultAttributes(): DefaultAttributes<Insertable<DB[TB]>> {
-      const defaults: Record<string, any> = {};
-      for (const [key, value] of Object.entries(config.attributes ?? {})) {
-        if (!isAttributeConfig(value)) {
-          // A bare value (or factory) is shorthand for { default: value }
-          defaults[key] = value;
-        } else if (value.default !== undefined) {
-          defaults[key] = typeof value.default === "function" ? value.default() : value.default;
-        }
-      }
-      return defaults as DefaultAttributes<Insertable<DB[TB]>>;
-    }
-  }
-
-  return BaseModel as unknown as ModelClass<DB, TB, PK, DefaultedInsertable>;
-}
