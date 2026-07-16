@@ -125,6 +125,28 @@ export abstract class StaticForwarder {
     return (this as any).query().max(column);
   }
 
+  static async min<T extends AnyModelConstructor>(
+    this: T,
+    column: keyof Inst<T>["attributes"] & string,
+  ): Promise<number | null> {
+    return (this as any).query().min(column);
+  }
+
+  static async avg<T extends AnyModelConstructor>(
+    this: T,
+    column: keyof Inst<T>["attributes"] & string,
+  ): Promise<number | null> {
+    return (this as any).query().avg(column);
+  }
+
+  static async exists<T extends AnyModelConstructor>(this: T): Promise<boolean> {
+    return (this as any).query().exists();
+  }
+
+  static async doesntExist<T extends AnyModelConstructor>(this: T): Promise<boolean> {
+    return (this as any).query().doesntExist();
+  }
+
   static async paginate<T extends AnyModelConstructor>(
     this: T,
     perPage?: number,

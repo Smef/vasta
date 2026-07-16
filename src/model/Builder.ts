@@ -423,6 +423,29 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
     return value !== null && value !== undefined ? Number(value) : null;
   }
 
+  async min(column: keyof M["attributes"] & string): Promise<number | null> {
+    const value = await this.aggregate((eb) => eb.fn.min(column));
+    return value !== null && value !== undefined ? Number(value) : null;
+  }
+
+  async avg(column: keyof M["attributes"] & string): Promise<number | null> {
+    const value = await this.aggregate((eb) => eb.fn.avg(column));
+    return value !== null && value !== undefined ? Number(value) : null;
+  }
+
+  /** Returns true if any record matches the accumulated constraints. */
+  async exists(): Promise<boolean> {
+    const { db, table } = this.modelMeta();
+    const query = this.applyConstraints(db.selectFrom(table).select((eb: any) => eb.lit(1).as("value"))).limit(1);
+    const result = await query.executeTakeFirst();
+    return result !== undefined;
+  }
+
+  /** Returns true if no records match the accumulated constraints. */
+  async doesntExist(): Promise<boolean> {
+    return !(await this.exists());
+  }
+
   async paginate(
     perPage: number = 15,
     page: number = 1,

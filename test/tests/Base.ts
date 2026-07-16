@@ -589,6 +589,50 @@ describe("aggregates", () => {
     const max = await Pet.max("counter");
     expect(max).toBeGreaterThanOrEqual(0);
   });
+
+  it("should return null for max on an empty result set", async () => {
+    const max = await Pet.where("id", "=", -999).max("counter");
+    expect(max).toBeNull();
+  });
+
+  it("should get the min value", async () => {
+    const min = await Pet.min("counter");
+    expect(min).not.toBeNull();
+    expect(min).toBeGreaterThanOrEqual(0);
+
+    const max = await Pet.max("counter");
+    expect(min).toBeLessThanOrEqual(Number(max));
+  });
+
+  it("should return null for min on an empty result set", async () => {
+    const min = await Pet.where("id", "=", -999).min("counter");
+    expect(min).toBeNull();
+  });
+
+  it("should get the average value", async () => {
+    const avg = await Pet.avg("counter");
+    expect(avg).not.toBeNull();
+
+    const sum = await Pet.sum("counter");
+    const count = await Pet.count();
+    expect(avg).toBeCloseTo(sum / count);
+  });
+
+  it("should return null for avg on an empty result set", async () => {
+    const avg = await Pet.where("id", "=", -999).avg("counter");
+    expect(avg).toBeNull();
+  });
+
+  it("should check if records exist", async () => {
+    expect(await Pet.exists()).toBe(true);
+    expect(await Pet.where("name", "=", "Zuko").exists()).toBe(true);
+    expect(await Pet.where("id", "=", -999).exists()).toBe(false);
+  });
+
+  it("should check if records don't exist", async () => {
+    expect(await Pet.doesntExist()).toBe(false);
+    expect(await Pet.where("id", "=", -999).doesntExist()).toBe(true);
+  });
 });
 
 describe("save", () => {
