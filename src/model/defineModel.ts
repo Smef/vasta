@@ -127,7 +127,10 @@ export function defineModel<
   type DefaultedInsertable = Pick<Insertable<DB[TB]>, DefaultedInsertableKeys>;
 
   abstract class BaseModel extends Model<DB, TB, PK> {
-    db = config.db;
+    // Resolved on every access so a connection set on the instance (e.g. a transaction) wins
+    get db(): Kysely<DB> {
+      return this.connection ?? config.db;
+    }
     table = config.table;
     // Fallback to "id" if not provided, explicitly cast to keep TypeScript happy
     primaryKey = (config.primaryKey ?? "id") as PK;

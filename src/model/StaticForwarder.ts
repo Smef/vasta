@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { ComparisonOperatorExpression } from "kysely";
+import { ComparisonOperatorExpression, Kysely, Transaction } from "kysely";
 import {
   Builder,
   ColumnArg,
   ExpressionArg,
+  ExtractDB,
   ModelExpressionBuilder,
   RelationKeys,
   Selection,
@@ -34,10 +35,16 @@ export type PrimaryKeyValue<T extends AnyModelConstructor> = ModelPrimaryKeyValu
  */
 type Inst<T extends AnyModelConstructor> = InstanceType<T>;
 type Q<T extends AnyModelConstructor, S extends string = never> = Builder<Inst<T>, S>;
+/** A connection a query can run on: the model's db or a transaction started from it. */
+type Connection<T extends AnyModelConstructor> = Kysely<ExtractDB<Inst<T>>>;
 
 export abstract class StaticForwarder {
-  static query<T extends AnyModelConstructor>(this: T): Q<T> {
-    return new Builder(this as any);
+  /**
+   * Starts a query, optionally on the given connection (e.g. a transaction) instead
+   * of the model's configured db. Models returned by the query keep the connection.
+   */
+  static query<T extends AnyModelConstructor>(this: T, connection?: Connection<T>): Q<T> {
+    return new Builder(this as any, connection);
   }
 
   static where<T extends AnyModelConstructor>(this: T, expression: ExpressionArg<Inst<T>>): Q<T>;
@@ -192,19 +199,23 @@ export abstract class StaticForwarder {
   static async create<T extends AnyModelConstructor>(
     this: T,
     attributes: ConstructorParameters<T>[0],
+    connection?: Connection<T>,
   ): Promise<Inst<T>>;
   static async create<T extends AnyModelConstructor>(
     this: T,
     attributes: ConstructorParameters<T>[0][],
+    connection?: Connection<T>,
   ): Promise<Inst<T>[]>;
   static async create<T extends AnyModelConstructor>(
     this: T,
     attributes: ConstructorParameters<T>[0] | ConstructorParameters<T>[0][],
+    connection?: Connection<T>,
   ): Promise<Inst<T> | Inst<T>[]> {
     if (Array.isArray(attributes)) {
-      return (this as any).createMany(attributes);
+      return (this as any).createMany(attributes, connection);
     }
     const instance = new (this as any)(attributes);
+    if (connection) instance.useConnection(connection);
     await instance.save();
     return instance;
   }
@@ -212,8 +223,13 @@ export abstract class StaticForwarder {
   static async createMany<T extends AnyModelConstructor>(
     this: T,
     attributes: ConstructorParameters<T>[0][],
+    connection?: Connection<T>,
   ): Promise<Inst<T>[]> {
-    const instances = attributes.map((attrs) => new (this as any)(attrs)) as Inst<T>[];
+    const instances = attributes.map((attrs) => {
+      const instance = new (this as any)(attrs);
+      if (connection) instance.useConnection(connection);
+      return instance;
+    }) as Inst<T>[];
     if (instances.length === 0) {
       return instances;
     }
@@ -244,6 +260,19 @@ export abstract class StaticForwarder {
     }
 
     return instances;
+  }
+
+  /**
+   * Starts a transaction on this model's database and runs the callback with it.
+   * Pass the transaction to queries, saves, and creates that should run inside it.
+   * Commits when the callback resolves; rolls back if it throws.
+   */
+  static async transaction<T extends AnyModelConstructor, R>(
+    this: T,
+    callback: (trx: Transaction<ExtractDB<Inst<T>>>) => Promise<R>,
+  ): Promise<R> {
+    const dummy = new (this as any)({});
+    return dummy.db.transaction().execute(callback);
   }
 
   static select<T extends AnyModelConstructor, const K extends Selection<Inst<T>>>(

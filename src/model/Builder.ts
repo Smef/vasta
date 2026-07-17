@@ -128,8 +128,25 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
   protected limitValue?: number;
   protected offsetValue?: number;
   protected orderings: { column: any; direction: "asc" | "desc" }[] = [];
+  /** Connection override (e.g. a transaction) used instead of the model's configured db. */
+  protected connection?: Kysely<any>;
 
-  constructor(protected modelConstructor: AnyModelConstructor) {}
+  constructor(
+    protected modelConstructor: AnyModelConstructor,
+    connection?: Kysely<any>,
+  ) {
+    this.connection = connection;
+  }
+
+  /**
+   * Sets the connection (e.g. a transaction) the query runs on instead of the model's
+   * configured db. Models returned by the query keep the connection, so save, delete,
+   * and relations on them stay on the same connection.
+   */
+  useConnection(connection: Kysely<ExtractDB<M>> | undefined): this {
+    this.connection = connection;
+    return this;
+  }
   where(expression: ExpressionArg<M>): this;
   where<Column extends ColumnArg<M>>(
     column: Column,
@@ -324,7 +341,7 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
         const dummy = new (meta.relatedClass as any)({});
         const table = dummy.table;
         query = (meta.relatedClass as any)
-          .query()
+          .query(this.connection)
           .innerJoin(
             meta.pivotTable!,
             `${meta.pivotTable!}.${meta.relatedPivotKey!}`,
@@ -334,7 +351,7 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
           .selectAll(table)
           .select([`${meta.pivotTable!}.${meta.foreignPivotKey!} as _pivot_foreign_key`]);
       } else {
-        query = (meta.relatedClass as any).query().whereIn(meta.matchRelatedKey, keys);
+        query = (meta.relatedClass as any).query(this.connection).whereIn(meta.matchRelatedKey, keys);
       }
 
       if (constraint) {
@@ -369,7 +386,7 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
   /** Instantiates a throwaway model to read its configuration (db, table, primaryKey). */
   protected modelMeta(): { db: Kysely<any>; table: string; primaryKey: string } {
     const dummy = new (this.modelConstructor as any)({});
-    return { db: dummy.db, table: dummy.table, primaryKey: dummy.primaryKey };
+    return { db: this.connection ?? dummy.db, table: dummy.table, primaryKey: dummy.primaryKey };
   }
 
   /** Applies all accumulated where-constraints to a Kysely select query. */
@@ -446,6 +463,7 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
       // The constructor takes (attributes, isNew)
       const instance = new (this.modelConstructor as any)(row, false);
       instance.exists = true;
+      if (this.connection) instance.connection = this.connection;
       return instance as SelectedModel<M, S>;
     });
 
@@ -465,6 +483,7 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
     // Pass isNew=false (the second arg) so we don't apply defaults
     const instance = new (this.modelConstructor as any)(row, false);
     instance.exists = true;
+    if (this.connection) instance.connection = this.connection;
 
     await this.eagerLoad([instance]);
     return instance as SelectedModel<M, S>;
@@ -648,7 +667,9 @@ export class RelationBuilder<M extends ModelLike, R> extends Builder<M> implemen
     private instance: any, // The parent model instance
     public relationMetadata: RelationMetadata,
   ) {
-    super(modelConstructor);
+    // Relations run on the parent model's connection, so a model loaded in a
+    // transaction reads its relations through the same transaction.
+    super(modelConstructor, instance?.connection);
   }
 
   public _markClean() {

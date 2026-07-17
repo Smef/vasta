@@ -122,6 +122,14 @@ export abstract class Model<
   exists = false;
   loadedRelations: Record<string, any> = {};
 
+  /**
+   * Connection override (e.g. a transaction) used instead of the configured db.
+   * Set automatically on models loaded through a connection-bound query, so
+   * save, delete, and relations stay on the same connection.
+   * Initialized explicitly so the property exists on the instance for the attributes proxy.
+   */
+  connection: Kysely<DB> | undefined = undefined;
+
   constructor(attributes: Partial<Insertable<DB[TB]>> = {}, isNew = true) {
     super();
 
@@ -142,6 +150,15 @@ export abstract class Model<
     (this as any)[RAW_ATTRIBUTES] = this.attributes;
 
     return createModelProxy(this);
+  }
+
+  /**
+   * Sets the connection (e.g. a transaction) used for save, delete, and relations
+   * instead of the model's configured db. Pass undefined to restore the default.
+   */
+  useConnection(connection: Kysely<DB> | undefined): this {
+    this.connection = connection;
+    return this;
   }
 
   assign(attributes: Partial<Updateable<DB[TB]>>): this {
@@ -232,7 +249,8 @@ export abstract class Model<
     await this.events[eventName]?.(this);
   }
 
-  async save(): Promise<this> {
+  async save(connection?: Kysely<DB>): Promise<this> {
+    const db = connection ?? this.db;
     const pkValue = this.attributes[this.primaryKey as unknown as keyof typeof this.attributes];
     const isNewModel = !this.exists;
 
@@ -256,7 +274,7 @@ export abstract class Model<
       }
 
       // UPDATE
-      const query = (this.db as any)
+      const query = (db as any)
         .updateTable(this.table)
         .set(dirtyAttributes as any)
         .where(this.primaryKey as any, "=", pkValue);
@@ -267,7 +285,7 @@ export abstract class Model<
       await this.dispatchEvent("updated");
     } else {
       // INSERT
-      const result = await (this.db as any)
+      const result = await (db as any)
         .insertInto(this.table)
         .values(this.getRawAttributes() as any)
         .returningAll()
@@ -286,15 +304,17 @@ export abstract class Model<
     return this;
   }
 
-  async delete(): Promise<boolean> {
+  async delete(connection?: Kysely<DB>): Promise<boolean> {
     if (!this.exists) {
       throw new Error("Cannot delete a model that doesn't exist in the database");
     }
 
+    const db = connection ?? this.db;
+
     await this.dispatchEvent("deleting");
 
     const pkValue = this.attributes[this.primaryKey as unknown as keyof typeof this.attributes];
-    const result = await (this.db as any)
+    const result = await (db as any)
       .deleteFrom(this.table)
       .where(this.primaryKey as any, "=", pkValue)
       .executeTakeFirst();
