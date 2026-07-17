@@ -101,6 +101,18 @@ export type WithConstraints<M> = {
   [K in RelationKeys<M>]?: M[K] extends RelationBuilder<infer RM, any> ? (query: Builder<RM>) => void : never;
 };
 
+/** Constraint callbacks for withCount(), keyed by relation name. */
+export type CountConstraints<M> = {
+  [K in RelationKeys<M>]?: M[K] extends RelationBuilder<infer RM, any> ? (query: Builder<RM>) => void : never;
+};
+
+/** The relation names counted by a withCount() call: string arguments plus constraint object keys. */
+export type CountedRelations<A> = A extends string ? A : keyof A & string;
+
+/** A model type augmented with the `${relation}Count` attributes added by withCount(). */
+export type WithCounted<M extends ModelLike, R extends string> = M &
+  Record<`${R}Count`, number> & { attributes: Record<`${R}Count`, number> };
+
 export class Builder<M extends ModelLike, S extends keyof M["attributes"] | string = never> {
   protected constraints: Constraint[] = [];
   protected joinConstraints: JoinConstraint[] = [];
@@ -112,11 +124,29 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
   )[] = []; // Track our columns
   protected selectAllTables: string[] = [];
   protected eagerLoads: { relation: string; constraint?: (query: Builder<any>) => void }[] = [];
+  protected relationCounts: { relation: string; constraint?: (query: Builder<any>) => void }[] = [];
   protected limitValue?: number;
   protected offsetValue?: number;
   protected orderings: { column: any; direction: "asc" | "desc" }[] = [];
+  /** Connection override (e.g. a transaction) used instead of the model's configured db. */
+  protected connection?: Kysely<any>;
 
-  constructor(protected modelConstructor: AnyModelConstructor) {}
+  constructor(
+    protected modelConstructor: AnyModelConstructor,
+    connection?: Kysely<any>,
+  ) {
+    this.connection = connection;
+  }
+
+  /**
+   * Sets the connection (e.g. a transaction) the query runs on instead of the model's
+   * configured db. Models returned by the query keep the connection, so save, delete,
+   * and relations on them stay on the same connection.
+   */
+  useConnection(connection: Kysely<ExtractDB<M>> | undefined): this {
+    this.connection = connection;
+    return this;
+  }
   where(expression: ExpressionArg<M>): this;
   where<Column extends ColumnArg<M>>(
     column: Column,
@@ -216,6 +246,69 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
     return this;
   }
 
+  /**
+   * Adds a `${relation}Count` attribute to each result, holding the number of related records.
+   * Accepts relation names and/or objects mapping relation names to constraint callbacks.
+   */
+  withCount<Args extends (RelationKeys<M> | CountConstraints<M>)[]>(
+    ...relations: Args
+  ): Builder<WithCounted<M, CountedRelations<Args[number]>>, S> {
+    for (const relation of relations) {
+      if (typeof relation === "string") {
+        this.relationCounts.push({ relation });
+      } else {
+        for (const [key, constraint] of Object.entries(relation as Record<string, any>)) {
+          this.relationCounts.push({ relation: key, constraint });
+        }
+      }
+    }
+    // We must cast here because we are technically changing the builder's type signature
+    return this as unknown as Builder<WithCounted<M, CountedRelations<Args[number]>>, S>;
+  }
+
+  /** Reads a relation's metadata by instantiating a throwaway model and accessing the relation getter. */
+  protected relationMeta(relation: string): RelationMetadata {
+    const dummy = new (this.modelConstructor as any)({});
+    const relationBuilder = dummy[relation] as RelationBuilder<any, any> | undefined;
+    if (!relationBuilder?.relationMetadata) {
+      throw new Error(`Relation '${relation}' is not properly defined or does not return a RelationBuilder.`);
+    }
+    return relationBuilder.relationMetadata;
+  }
+
+  /** Builds a correlated subquery counting related records, aliased as `${relation}Count`. */
+  private relationCountSelect(eb: any, relation: string, constraint?: (query: Builder<any>) => void): any {
+    const meta = this.relationMeta(relation);
+    const { table } = this.modelMeta();
+    const relatedTable = new (meta.relatedClass as any)({}).table;
+    const alias = `${relation}Count`;
+
+    let subquery: any;
+    if (meta.type === "belongsToMany") {
+      subquery = eb
+        .selectFrom(meta.pivotTable!)
+        .innerJoin(
+          relatedTable,
+          `${meta.pivotTable!}.${meta.relatedPivotKey!}`,
+          `${relatedTable}.${meta.matchRelatedKey}`,
+        )
+        .whereRef(`${meta.pivotTable!}.${meta.foreignPivotKey!}`, "=", `${table}.${meta.matchThisKey}`);
+    } else {
+      subquery = eb
+        .selectFrom(relatedTable)
+        .whereRef(`${relatedTable}.${meta.matchRelatedKey}`, "=", `${table}.${meta.matchThisKey}`);
+    }
+
+    if (constraint) {
+      const constraintBuilder = new Builder<any>(meta.relatedClass);
+      constraint(constraintBuilder);
+      subquery = constraintBuilder.applyConstraints(subquery);
+    }
+
+    // Cast to integer so drivers that return bigint counts as strings still produce numbers
+    return subquery.select((seb: any) => seb.cast(seb.fn.countAll(), "integer").as(alias)).as(alias);
+  }
+
   protected async eagerLoad(models: any[]): Promise<void> {
     if (models.length === 0 || this.eagerLoads.length === 0) {
       return;
@@ -248,7 +341,7 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
         const dummy = new (meta.relatedClass as any)({});
         const table = dummy.table;
         query = (meta.relatedClass as any)
-          .query()
+          .query(this.connection)
           .innerJoin(
             meta.pivotTable!,
             `${meta.pivotTable!}.${meta.relatedPivotKey!}`,
@@ -258,7 +351,7 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
           .selectAll(table)
           .select([`${meta.pivotTable!}.${meta.foreignPivotKey!} as _pivot_foreign_key`]);
       } else {
-        query = (meta.relatedClass as any).query().whereIn(meta.matchRelatedKey, keys);
+        query = (meta.relatedClass as any).query(this.connection).whereIn(meta.matchRelatedKey, keys);
       }
 
       if (constraint) {
@@ -293,7 +386,7 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
   /** Instantiates a throwaway model to read its configuration (db, table, primaryKey). */
   protected modelMeta(): { db: Kysely<any>; table: string; primaryKey: string } {
     const dummy = new (this.modelConstructor as any)({});
-    return { db: dummy.db, table: dummy.table, primaryKey: dummy.primaryKey };
+    return { db: this.connection ?? dummy.db, table: dummy.table, primaryKey: dummy.primaryKey };
   }
 
   /** Applies all accumulated where-constraints to a Kysely select query. */
@@ -342,6 +435,10 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
       query = query.selectAll() as any;
     }
 
+    for (const { relation, constraint } of this.relationCounts) {
+      query = query.select((eb: any) => this.relationCountSelect(eb, relation, constraint)) as any;
+    }
+
     query = this.applyConstraints(query);
 
     for (const order of this.orderings) {
@@ -366,6 +463,7 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
       // The constructor takes (attributes, isNew)
       const instance = new (this.modelConstructor as any)(row, false);
       instance.exists = true;
+      if (this.connection) instance.connection = this.connection;
       return instance as SelectedModel<M, S>;
     });
 
@@ -385,6 +483,7 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
     // Pass isNew=false (the second arg) so we don't apply defaults
     const instance = new (this.modelConstructor as any)(row, false);
     instance.exists = true;
+    if (this.connection) instance.connection = this.connection;
 
     await this.eagerLoad([instance]);
     return instance as SelectedModel<M, S>;
@@ -421,6 +520,29 @@ export class Builder<M extends ModelLike, S extends keyof M["attributes"] | stri
   async max(column: keyof M["attributes"] & string): Promise<number | null> {
     const value = await this.aggregate((eb) => eb.fn.max(column));
     return value !== null && value !== undefined ? Number(value) : null;
+  }
+
+  async min(column: keyof M["attributes"] & string): Promise<number | null> {
+    const value = await this.aggregate((eb) => eb.fn.min(column));
+    return value !== null && value !== undefined ? Number(value) : null;
+  }
+
+  async avg(column: keyof M["attributes"] & string): Promise<number | null> {
+    const value = await this.aggregate((eb) => eb.fn.avg(column));
+    return value !== null && value !== undefined ? Number(value) : null;
+  }
+
+  /** Returns true if any record matches the accumulated constraints. */
+  async exists(): Promise<boolean> {
+    const { db, table } = this.modelMeta();
+    const query = this.applyConstraints(db.selectFrom(table).select((eb: any) => eb.lit(1).as("value"))).limit(1);
+    const result = await query.executeTakeFirst();
+    return result !== undefined;
+  }
+
+  /** Returns true if no records match the accumulated constraints. */
+  async doesntExist(): Promise<boolean> {
+    return !(await this.exists());
   }
 
   async paginate(
@@ -545,7 +667,9 @@ export class RelationBuilder<M extends ModelLike, R> extends Builder<M> implemen
     private instance: any, // The parent model instance
     public relationMetadata: RelationMetadata,
   ) {
-    super(modelConstructor);
+    // Relations run on the parent model's connection, so a model loaded in a
+    // transaction reads its relations through the same transaction.
+    super(modelConstructor, instance?.connection);
   }
 
   public _markClean() {

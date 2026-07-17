@@ -589,6 +589,50 @@ describe("aggregates", () => {
     const max = await Pet.max("counter");
     expect(max).toBeGreaterThanOrEqual(0);
   });
+
+  it("should return null for max on an empty result set", async () => {
+    const max = await Pet.where("id", "=", -999).max("counter");
+    expect(max).toBeNull();
+  });
+
+  it("should get the min value", async () => {
+    const min = await Pet.min("counter");
+    expect(min).not.toBeNull();
+    expect(min).toBeGreaterThanOrEqual(0);
+
+    const max = await Pet.max("counter");
+    expect(min).toBeLessThanOrEqual(Number(max));
+  });
+
+  it("should return null for min on an empty result set", async () => {
+    const min = await Pet.where("id", "=", -999).min("counter");
+    expect(min).toBeNull();
+  });
+
+  it("should get the average value", async () => {
+    const avg = await Pet.avg("counter");
+    expect(avg).not.toBeNull();
+
+    const sum = await Pet.sum("counter");
+    const count = await Pet.count();
+    expect(avg).toBeCloseTo(sum / count);
+  });
+
+  it("should return null for avg on an empty result set", async () => {
+    const avg = await Pet.where("id", "=", -999).avg("counter");
+    expect(avg).toBeNull();
+  });
+
+  it("should check if records exist", async () => {
+    expect(await Pet.exists()).toBe(true);
+    expect(await Pet.where("name", "=", "Zuko").exists()).toBe(true);
+    expect(await Pet.where("id", "=", -999).exists()).toBe(false);
+  });
+
+  it("should check if records don't exist", async () => {
+    expect(await Pet.doesntExist()).toBe(false);
+    expect(await Pet.where("id", "=", -999).doesntExist()).toBe(true);
+  });
 });
 
 describe("save", () => {
@@ -1280,6 +1324,97 @@ describe("relationships", () => {
   it("should throw when eager loading an invalid relation", async () => {
     // @ts-expect-error test invalid relation eager loading
     await expect(Person.with("invalidRelation").get()).rejects.toThrow(
+      "Relation 'invalidRelation' is not properly defined or does not return a RelationBuilder.",
+    );
+  });
+});
+
+describe("withCount", () => {
+  it("should count hasMany related records", async () => {
+    resetQueryCount();
+    const pets = await Pet.withCount("vetVisits").orderBy("id", "asc").limit(3).get();
+
+    expect(pets).toHaveLength(3);
+    expect(pets[0].vetVisitsCount).toBe(2);
+    expect(pets[1].vetVisitsCount).toBe(1);
+    expect(pets[2].vetVisitsCount).toBe(3);
+    expect(pets[0].attributes.vetVisitsCount).toBe(2);
+
+    // Counts are added as a subquery, so this should be a single query
+    expect(getQueryCount()).toBe(1);
+  });
+
+  it("should count belongsToMany related records", async () => {
+    const pets = await Pet.withCount("vets").orderBy("id", "asc").limit(2).get();
+
+    expect(pets[0].vetsCount).toBe(2);
+    expect(pets[1].vetsCount).toBe(1);
+  });
+
+  it("should count belongsTo related records", async () => {
+    const pet = await Pet.withCount("owner").findOrFail(1);
+    expect(pet.ownerCount).toBe(1);
+  });
+
+  it("should count multiple relations at once", async () => {
+    const pet = await Pet.withCount("vetVisits", "vets").findOrFail(1);
+    expect(pet.vetVisitsCount).toBe(2);
+    expect(pet.vetsCount).toBe(2);
+  });
+
+  it("should count related records with constraints", async () => {
+    const pets = await Pet.withCount({ vetVisits: (query) => query.where("vet_id", 1) })
+      .orderBy("id", "asc")
+      .limit(3)
+      .get();
+
+    expect(pets[0].vetVisitsCount).toBe(1);
+    expect(pets[1].vetVisitsCount).toBe(1);
+    expect(pets[2].vetVisitsCount).toBe(0);
+  });
+
+  it("should mix relation names and constraint objects in one call", async () => {
+    const pet = await Pet.withCount("vets", { vetVisits: (query) => query.where("vet_id", 2) }).findOrFail(1);
+
+    expect(pet.vetsCount).toBe(2);
+    expect(pet.vetVisitsCount).toBe(1);
+  });
+
+  it("should work alongside eager loading", async () => {
+    const pet = await Pet.with("vets").withCount("vetVisits").findOrFail(1);
+
+    expect(pet.vetVisitsCount).toBe(2);
+    expect(pet.loadedRelations.vets).toHaveLength(2);
+  });
+
+  it("should work alongside where constraints", async () => {
+    const pet = await Pet.query().where("id", 3).withCount("vetVisits").first();
+
+    expectToBeDefined(pet);
+    expect(pet.vetVisitsCount).toBe(3);
+  });
+
+  it("should include counts in serialization", async () => {
+    const pet = await Pet.withCount("vetVisits").findOrFail(1);
+    const json = pet.toJSON();
+
+    expect(json.vetVisitsCount).toBe(2);
+  });
+
+  it("should not mark models dirty or interfere with saving", async () => {
+    const pet = await Pet.withCount("vetVisits").findOrFail(1);
+    const originalCounter = pet.attributes.counter;
+
+    pet.attributes.counter += 1;
+    await pet.save();
+
+    const refreshed = await Pet.findOrFail(1);
+    expect(refreshed.attributes.counter).toBe(originalCounter + 1);
+  });
+
+  it("should throw when counting an invalid relation", async () => {
+    // @ts-expect-error test invalid relation count
+    await expect(Pet.withCount("invalidRelation").get()).rejects.toThrow(
       "Relation 'invalidRelation' is not properly defined or does not return a RelationBuilder.",
     );
   });

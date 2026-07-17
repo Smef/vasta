@@ -8,6 +8,8 @@ export default defineConfig({
     include: ["./**/*.ts"],
     typecheck: {
       tsconfig: "./test/tsconfig.json",
+      // Type-check the regular test files too, not just *.test-d.ts files
+      include: ["./**/*.ts"],
     },
   },
   resolve: {

@@ -1,6 +1,7 @@
 import { defineModel, RequireSelected } from "vasta-orm";
 import Person from "@/database/models/Person";
 import Vet from "@/database/models/Vet";
+import VetVisit from "@/database/models/VetVisit";
 import db from "@/database/db";
 
 type Requires<K extends keyof Pet["attributes"] & string> = RequireSelected<Pet, K>;
@@ -22,6 +23,11 @@ export default class Pet extends defineModel({
   // A Pet has many Vets
   get vets() {
     return this.belongsToMany(Vet, "vet_visits", "pet_id", "vet_id");
+  }
+
+  // A Pet has many VetVisits
+  get vetVisits() {
+    return this.hasMany(VetVisit, "pet_id", "id");
   }
 
   // Restrict 'this' to require the 'counter' attribute
